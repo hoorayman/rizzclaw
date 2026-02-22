@@ -1,13 +1,19 @@
 package context
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
 func InitializeWorkspace(workspaceDir string) error {
-	if err := os.MkdirAll(workspaceDir, 0755); err != nil {
-		return err
+	absPath, err := filepath.Abs(workspaceDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path: %w", err)
+	}
+	
+	if err := os.MkdirAll(absPath, 0755); err != nil {
+		return fmt.Errorf("failed to create workspace directory: %w", err)
 	}
 	
 	templates := map[string]string{
@@ -19,9 +25,14 @@ func InitializeWorkspace(workspaceDir string) error {
 	}
 	
 	for filename, content := range templates {
-		path := filepath.Join(workspaceDir, filename)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			os.WriteFile(path, []byte(content), 0644)
+		path := filepath.Join(absPath, filename)
+		f, err := os.Create(path)
+		if err != nil {
+			return fmt.Errorf("failed to create %s: %w", filename, err)
+		}
+		f.Close()
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", filename, err)
 		}
 	}
 	
