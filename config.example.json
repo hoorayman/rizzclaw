@@ -3,8 +3,9 @@
     "mode": "merge",
     "providers": {
       "minimax": {
-        "baseUrl": "https://api.minimaxi.com/v1",
-        "apiKey": "YOUR_MINIMAX_API_KEY_HERE",
+        "baseUrl": "https://api.minimaxi.com/anthropic",
+        "apiKey": "API_KEY",
+        "api": "anthropic-messages",
         "models": [
           {
             "id": "MiniMax-M2.1",
