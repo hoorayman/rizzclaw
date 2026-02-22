@@ -26,11 +26,11 @@ func InitializeWorkspace(workspaceDir string) error {
 	
 	for filename, content := range templates {
 		path := filepath.Join(absPath, filename)
-		f, err := os.Create(path)
-		if err != nil {
-			return fmt.Errorf("failed to create %s: %w", filename, err)
+		
+		if _, err := os.Stat(path); err == nil {
+			continue
 		}
-		f.Close()
+		
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			return fmt.Errorf("failed to write %s: %w", filename, err)
 		}
