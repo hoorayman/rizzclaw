@@ -11,6 +11,7 @@ import (
 
 	"github.com/hoorayman/rizzclaw/internal/agent"
 	"github.com/hoorayman/rizzclaw/internal/config"
+	ctxmgr "github.com/hoorayman/rizzclaw/internal/context"
 	"github.com/hoorayman/rizzclaw/internal/minimax"
 	"github.com/spf13/cobra"
 )
@@ -86,6 +87,9 @@ func Execute() error {
 func runChat(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
+
+	ctxMgr := ctxmgr.GetManager()
+	_ = ctxMgr
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
