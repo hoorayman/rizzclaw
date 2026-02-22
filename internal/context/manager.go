@@ -33,8 +33,23 @@ func GetManager() *Manager {
 			cache:        make(map[string]*ContextFile),
 		}
 		globalManager.loadAllFiles()
+		
+		if globalManager.needsInitialization() {
+			InitializeWorkspace(workspaceDir)
+			globalManager.loadAllFiles()
+		}
 	})
 	return globalManager
+}
+
+func (m *Manager) needsInitialization() bool {
+	for _, filename := range BootstrapFilenames {
+		cf := m.cache[filename]
+		if cf == nil || cf.Content == "" {
+			return true
+		}
+	}
+	return false
 }
 
 func NewManager(workspaceDir string, config *ContextConfig) *Manager {
