@@ -165,7 +165,7 @@ func (s *Skill) GetTools() []llm.Tool {
 			result = append(result, llm.Tool{
 				Name:        tool.Name,
 				Description: tool.Description,
-				Parameters:  tool.Parameters,
+				InputSchema: tool.InputSchema,
 			})
 		}
 	}
@@ -204,7 +204,7 @@ func GetEnabledSkillsTools() []llm.Tool {
 				toolMap[toolName] = llm.Tool{
 					Name:        tool.Name,
 					Description: tool.Description,
-					Parameters:  tool.Parameters,
+					InputSchema: tool.InputSchema,
 				}
 			}
 		}
