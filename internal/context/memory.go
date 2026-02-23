@@ -630,7 +630,7 @@ var stopWords = map[string]bool{
 }
 
 func extractKeywords(text string) []string {
-	re := regexp.MustCompile(`[\w\u4e00-\u9fff]+`)
+	re := regexp.MustCompile(`[\p{Han}\w]+`)
 	words := re.FindAllString(strings.ToLower(text), -1)
 	
 	keywords := make([]string, 0)
