@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,16 +13,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andybalholm/brotli"
 	"github.com/hoorayman/rizzclaw/internal/llm"
 )
 
 var browserHeaders = map[string]string{
-	"User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
-	"Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-	"Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-	"Accept-Encoding": "gzip, deflate, br",
-	"Connection":      "keep-alive",
-	"Cache-Control":   "max-age=0",
+	"User-Agent":                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+	"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+	"Accept-Language":           "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+	"Accept-Encoding":           "gzip, deflate, br",
+	"Connection":                "keep-alive",
+	"Upgrade-Insecure-Requests": "1",
+	"Sec-Fetch-Dest":            "document",
+	"Sec-Fetch-Mode":            "navigate",
+	"Sec-Fetch-Site":            "none",
+	"Sec-Fetch-User":            "?1",
+	"Cache-Control":             "max-age=0",
 }
 
 func init() {
@@ -107,6 +114,11 @@ func WebSearch(ctx context.Context, input map[string]any) (string, error) {
 func webSearchBing(ctx context.Context, query string, count int) (string, error) {
 	endpoint := fmt.Sprintf("https://www.bing.com/search?q=%s", url.QueryEscape(query))
 
+	debug := os.Getenv("RIZZ_DEBUG") != ""
+	if debug {
+		fmt.Printf("[DEBUG] Bing search URL: %s\n", endpoint)
+	}
+
 	client := &http.Client{Timeout: 30 * time.Second}
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
@@ -119,20 +131,63 @@ func webSearchBing(ctx context.Context, query string, count int) (string, error)
 
 	resp, err := client.Do(req)
 	if err != nil {
+		if debug {
+			fmt.Printf("[DEBUG] Request failed: %v\n", err)
+		}
 		return "", fmt.Errorf("failed to fetch search results: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if debug {
+		fmt.Printf("[DEBUG] Response status: %d\n", resp.StatusCode)
+		fmt.Printf("[DEBUG] Content-Type: %s\n", resp.Header.Get("Content-Type"))
+		fmt.Printf("[DEBUG] Content-Encoding: %s\n", resp.Header.Get("Content-Encoding"))
+	}
 
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("Bing returned status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	var reader io.Reader = resp.Body
+	encoding := resp.Header.Get("Content-Encoding")
+	if debug {
+		fmt.Printf("[DEBUG] Content-Encoding: %s\n", encoding)
+	}
+
+	switch encoding {
+	case "gzip":
+		gzReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			if debug {
+				fmt.Printf("[DEBUG] Gzip reader error: %v\n", err)
+			}
+			return "", fmt.Errorf("gzip decode error: %w", err)
+		}
+		defer gzReader.Close()
+		reader = gzReader
+	case "br":
+		reader = brotli.NewReader(resp.Body)
+	case "deflate":
+		reader = resp.Body
+	}
+
+	body, err := io.ReadAll(reader)
 	if err != nil {
+		if debug {
+			fmt.Printf("[DEBUG] Read body error: %v\n", err)
+		}
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
+	if debug {
+		fmt.Printf("[DEBUG] Body length: %d bytes\n", len(body))
+	}
+
 	results := parseBingResults(string(body), count)
+
+	if debug {
+		fmt.Printf("[DEBUG] Parsed %d results\n", len(results))
+	}
 
 	if len(results) == 0 {
 		return fmt.Sprintf("No results found for: %s", query), nil
