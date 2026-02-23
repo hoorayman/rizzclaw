@@ -116,6 +116,33 @@ func runChat(cmd *cobra.Command, args []string) error {
 		opts = append(opts, agent.WithSystemPrompt(flagSystemPrompt))
 	}
 
+	sessions, err := sessMgr.ListSessions()
+	if err == nil && len(sessions) > 0 {
+		for i := len(sessions) - 1; i >= 0; i-- {
+			sessionID := sessions[i]
+			savedSession, err := sessMgr.LoadSession(sessionID)
+			if err == nil && savedSession != nil && len(savedSession.Messages) > 0 {
+				agentSession := &agent.Session{
+					ID:        savedSession.ID,
+					CreatedAt: savedSession.CreatedAt,
+					UpdatedAt: savedSession.UpdatedAt,
+					Messages:  make([]agent.Message, len(savedSession.Messages)),
+					Metadata:  make(map[string]any),
+				}
+				for i, msg := range savedSession.Messages {
+					agentSession.Messages[i] = agent.Message{
+						Role:      msg.Role,
+						Content:   msg.Content,
+						Timestamp: msg.Timestamp,
+					}
+				}
+				opts = append(opts, agent.WithSession(agentSession))
+				fmt.Printf("Resumed session: %s (%d messages)\n", sessionID, len(savedSession.Messages))
+				break
+			}
+		}
+	}
+
 	ag, err := agent.NewAgent("default", opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create agent: %w", err)
