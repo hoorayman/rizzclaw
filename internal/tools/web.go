@@ -183,101 +183,75 @@ func webSearchBing(ctx context.Context, query string, count int) (string, error)
 		fmt.Printf("[DEBUG] Body length: %d bytes\n", len(body))
 	}
 
-	results := parseBingResults(string(body), count)
+	html := string(body)
+	text := htmlToPlainText(html)
 
-	if debug {
-		fmt.Printf("[DEBUG] Parsed %d results\n", len(results))
+	maxLen := 15000
+	if len(text) > maxLen {
+		text = text[:maxLen] + "\n\n... [truncated]"
 	}
 
-	if len(results) == 0 {
-		return fmt.Sprintf("No results found for: %s", query), nil
-	}
-
-	return formatSearchResults(query, results)
+	return fmt.Sprintf("搜索关键词: %s\n\n%s", query, text), nil
 }
 
-func parseBingResults(html string, maxCount int) []SearchResult {
-	results := make([]SearchResult, 0)
+func htmlToPlainText(html string) string {
+	re := regexp.MustCompile(`<style[^>]*>[\s\S]*?</style>`)
+	html = re.ReplaceAllString(html, "")
 
-	re := regexp.MustCompile(`<li class="b_algo"[^>]*>([\s\S]*?)</li>`)
-	items := re.FindAllStringSubmatch(html, -1)
+	re = regexp.MustCompile(`<script[^>]*>[\s\S]*?</script>`)
+	html = re.ReplaceAllString(html, "")
 
-	for i, item := range items {
-		if i >= maxCount {
-			break
-		}
-		if len(item) < 2 {
-			continue
-		}
-		itemHTML := item[1]
+	re = regexp.MustCompile(`<nav[^>]*>[\s\S]*?</nav>`)
+	html = re.ReplaceAllString(html, "")
 
-		linkRe := regexp.MustCompile(`<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a>`)
-		linkMatch := linkRe.FindStringSubmatch(itemHTML)
-		if len(linkMatch) < 3 {
-			continue
-		}
+	re = regexp.MustCompile(`<footer[^>]*>[\s\S]*?</footer>`)
+	html = re.ReplaceAllString(html, "")
 
-		resultURL := linkMatch[1]
-		title := cleanHTMLTags(linkMatch[2])
+	re = regexp.MustCompile(`<header[^>]*>[\s\S]*?</header>`)
+	html = re.ReplaceAllString(html, "")
 
-		if strings.HasPrefix(resultURL, "/") || strings.Contains(resultURL, "bing.com") {
-			continue
-		}
+	re = regexp.MustCompile(`<aside[^>]*>[\s\S]*?</aside>`)
+	html = re.ReplaceAllString(html, "")
 
-		snippet := ""
-		snippetRe := regexp.MustCompile(`<div[^>]*class="b_caption"[^>]*>[\s\S]*?<p>([\s\S]*?)</p>`)
-		snippetMatch := snippetRe.FindStringSubmatch(itemHTML)
-		if len(snippetMatch) > 1 {
-			snippet = cleanHTMLTags(snippetMatch[1])
-		}
-		if snippet == "" {
-			snippetRe2 := regexp.MustCompile(`<p[^>]*class="b_lineclamp[^"]*"[^>]*>([\s\S]*?)</p>`)
-			snippetMatch2 := snippetRe2.FindStringSubmatch(itemHTML)
-			if len(snippetMatch2) > 1 {
-				snippet = cleanHTMLTags(snippetMatch2[1])
-			}
-		}
-		if snippet == "" {
-			snippetRe3 := regexp.MustCompile(`<span[^>]*class="news_dt"[^>]*>([\s\S]*?)</span>`)
-			snippetMatch3 := snippetRe3.FindStringSubmatch(itemHTML)
-			if len(snippetMatch3) > 1 {
-				snippet = cleanHTMLTags(snippetMatch3[1])
-			}
-		}
+	re = regexp.MustCompile(`<form[^>]*>[\s\S]*?</form>`)
+	html = re.ReplaceAllString(html, "")
 
-		results = append(results, SearchResult{
-			Title:   title,
-			URL:     resultURL,
-			Snippet: snippet,
-		})
-	}
+	html = strings.ReplaceAll(html, "</title>", " - ")
+	html = strings.ReplaceAll(html, "</h1>", "\n\n")
+	html = strings.ReplaceAll(html, "</h2>", "\n\n")
+	html = strings.ReplaceAll(html, "</h3>", "\n")
+	html = strings.ReplaceAll(html, "</h4>", "\n")
+	html = strings.ReplaceAll(html, "</h5>", "\n")
+	html = strings.ReplaceAll(html, "</h6>", "\n")
+	html = strings.ReplaceAll(html, "</p>", "\n")
+	html = strings.ReplaceAll(html, "</div>", "\n")
+	html = strings.ReplaceAll(html, "</li>", "\n")
+	html = strings.ReplaceAll(html, "</a>", " ")
+	html = strings.ReplaceAll(html, "<br>", "\n")
+	html = strings.ReplaceAll(html, "<br/>", "\n")
+	html = strings.ReplaceAll(html, "<br />", "\n")
 
-	if len(results) == 0 {
-		re2 := regexp.MustCompile(`<a[^>]*href="(https?://[^"]+)"[^>]*><h2[^>]*>([\s\S]*?)</h2>`)
-		matches2 := re2.FindAllStringSubmatch(html, -1)
+	re = regexp.MustCompile(`<a[^>]*href="([^"]+)"[^>]*>`)
+	html = re.ReplaceAllString(html, "[$1] ")
 
-		for i, match := range matches2 {
-			if i >= maxCount {
-				break
-			}
-			if len(match) >= 3 {
-				resultURL := match[1]
-				title := cleanHTMLTags(match[2])
+	re = regexp.MustCompile(`<[^>]+>`)
+	html = re.ReplaceAllString(html, "")
 
-				if strings.Contains(resultURL, "bing.com") || strings.Contains(resultURL, "microsoft.com") {
-					continue
-				}
+	html = strings.ReplaceAll(html, "&nbsp;", " ")
+	html = strings.ReplaceAll(html, "&amp;", "&")
+	html = strings.ReplaceAll(html, "&lt;", "<")
+	html = strings.ReplaceAll(html, "&gt;", ">")
+	html = strings.ReplaceAll(html, "&quot;", "\"")
+	html = strings.ReplaceAll(html, "&#39;", "'")
+	html = strings.ReplaceAll(html, "&apos;", "'")
 
-				results = append(results, SearchResult{
-					Title:   title,
-					URL:     resultURL,
-					Snippet: "",
-				})
-			}
-		}
-	}
+	re = regexp.MustCompile(`\s+`)
+	html = re.ReplaceAllString(html, " ")
 
-	return results
+	re = regexp.MustCompile(`\n\s*\n`)
+	html = re.ReplaceAllString(html, "\n\n")
+
+	return strings.TrimSpace(html)
 }
 
 func cleanHTMLTags(s string) string {
