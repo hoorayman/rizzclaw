@@ -71,6 +71,15 @@ func WithTools(useTools bool) AgentOption {
 	}
 }
 
+func WithDebug(debug bool) AgentOption {
+	return func(a *Agent) error {
+		if a.Client != nil {
+			a.Client.Client.Debug = debug
+		}
+		return nil
+	}
+}
+
 func NewAgent(id string, opts ...AgentOption) (*Agent, error) {
 	client, err := minimax.NewClient()
 	if err != nil {
@@ -229,6 +238,14 @@ func (a *Agent) ClearSession() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Session = NewSession(a.ID)
+}
+
+func (a *Agent) SetDebug(debug bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.Client != nil && a.Client.Client != nil {
+		a.Client.Client.Debug = debug
+	}
 }
 
 func extractTextFromResponse(resp *llm.ChatResponse) string {

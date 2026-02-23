@@ -65,12 +65,14 @@ var (
 	flagModel        string
 	flagSystemPrompt string
 	flagProvider     string
+	flagDebug        bool
 )
 
 func init() {
 	chatCmd.Flags().StringVarP(&flagModel, "model", "m", minimax.DefaultModel, "Model to use")
 	chatCmd.Flags().StringVarP(&flagSystemPrompt, "system", "s", "", "System prompt")
 	chatCmd.Flags().StringVarP(&flagProvider, "provider", "p", "minimax", "LLM provider")
+	chatCmd.Flags().BoolVarP(&flagDebug, "debug", "d", false, "Enable debug output")
 
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configSetCmd)
@@ -148,8 +150,15 @@ func runChat(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create agent: %w", err)
 	}
 
+	if flagDebug {
+		ag.SetDebug(true)
+	}
+
 	fmt.Println("RizzClaw Chat")
 	fmt.Printf("Model: %s\n", flagModel)
+	if flagDebug {
+		fmt.Println("Debug: enabled")
+	}
 	fmt.Println("Type your message and press Enter. Type '/exit' to quit, '/clear' to clear session.")
 	fmt.Println()
 
