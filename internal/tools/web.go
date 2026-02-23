@@ -15,6 +15,15 @@ import (
 	"github.com/hoorayman/rizzclaw/internal/llm"
 )
 
+var browserHeaders = map[string]string{
+	"User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+	"Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+	"Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+	"Accept-Encoding": "gzip, deflate, br",
+	"Connection":      "keep-alive",
+	"Cache-Control":   "max-age=0",
+}
+
 func init() {
 	RegisterTool(&ToolDefinition{
 		Name:        "web_search",
@@ -93,10 +102,116 @@ func WebSearch(ctx context.Context, input map[string]any) (string, error) {
 	}
 
 	result, err := webSearchDuckDuckGo(ctx, query, count)
-	if err != nil {
-		return "", fmt.Errorf("web search failed: %w (try setting BRAVE_API_KEY for better results)", err)
+	if err == nil {
+		return result, nil
 	}
-	return result, nil
+
+	return webSearchBing(ctx, query, count)
+}
+
+func webSearchBing(ctx context.Context, query string, count int) (string, error) {
+	endpoint := fmt.Sprintf("https://www.bing.com/search?q=%s", url.QueryEscape(query))
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	for k, v := range browserHeaders {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch search results: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("Bing returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	results := parseBingResults(string(body), count)
+
+	if len(results) == 0 {
+		return fmt.Sprintf("No results found for: %s", query), nil
+	}
+
+	return formatSearchResults(query, results)
+}
+
+func parseBingResults(html string, maxCount int) []SearchResult {
+	results := make([]SearchResult, 0)
+
+	re := regexp.MustCompile(`<li class="b_algo"[^>]*>[\s\S]*?<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a></h2>[\s\S]*?<div class="b_caption"[^>]*>[\s\S]*?<p>([\s\S]*?)</p>`)
+	matches := re.FindAllStringSubmatch(html, -1)
+
+	for i, match := range matches {
+		if i >= maxCount {
+			break
+		}
+		if len(match) >= 4 {
+			url := match[1]
+			title := cleanHTMLTags(match[2])
+			snippet := cleanHTMLTags(match[3])
+
+			if strings.HasPrefix(url, "/") {
+				continue
+			}
+
+			results = append(results, SearchResult{
+				Title:   title,
+				URL:     url,
+				Snippet: snippet,
+			})
+		}
+	}
+
+	if len(results) == 0 {
+		re2 := regexp.MustCompile(`<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a></h2>`)
+		matches2 := re2.FindAllStringSubmatch(html, -1)
+
+		for i, match := range matches2 {
+			if i >= maxCount {
+				break
+			}
+			if len(match) >= 3 {
+				url := match[1]
+				title := cleanHTMLTags(match[2])
+
+				if strings.HasPrefix(url, "/") || strings.Contains(url, "bing.com") {
+					continue
+				}
+
+				results = append(results, SearchResult{
+					Title:   title,
+					URL:     url,
+					Snippet: "",
+				})
+			}
+		}
+	}
+
+	return results
+}
+
+func cleanHTMLTags(s string) string {
+	re := regexp.MustCompile(`<[^>]+>`)
+	s = re.ReplaceAllString(s, "")
+	s = strings.ReplaceAll(s, "&amp;", "&")
+	s = strings.ReplaceAll(s, "&lt;", "<")
+	s = strings.ReplaceAll(s, "&gt;", ">")
+	s = strings.ReplaceAll(s, "&quot;", "\"")
+	s = strings.ReplaceAll(s, "&#39;", "'")
+	s = strings.ReplaceAll(s, "&nbsp;", " ")
+	s = strings.TrimSpace(s)
+	return s
 }
 
 func webSearchBrave(ctx context.Context, query string, count int, apiKey string) (string, error) {
@@ -160,9 +275,11 @@ func webSearchDuckDuckGo(ctx context.Context, query string, count int) (string, 
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
-	
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-	
+
+	for k, v := range browserHeaders {
+		req.Header.Set(k, v)
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch search results: %w", err)
@@ -217,7 +334,7 @@ func webSearchDuckDuckGo(ctx context.Context, query string, count int) (string, 
 	}
 
 	if len(results) == 0 {
-		return fmt.Sprintf("No results found for: %s\n\nNote: Set BRAVE_API_KEY environment variable for better search results.", query), nil
+		return "", fmt.Errorf("no results from DuckDuckGo")
 	}
 
 	return formatSearchResults(query, results)
