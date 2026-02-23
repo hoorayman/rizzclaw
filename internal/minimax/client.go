@@ -89,7 +89,6 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 			llm.WithAPIKey(apiKey),
 			llm.WithTimeout(180*time.Second),
 			llm.WithToolExecutor(tools.ExecuteTool),
-			llm.WithDebug(true),
 		),
 		model:         DefaultModel,
 		contextWindow: DefaultContextWindow,
