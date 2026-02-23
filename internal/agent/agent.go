@@ -236,8 +236,11 @@ func (a *Agent) GetSession() *Session {
 
 func (a *Agent) ClearSession() {
 	a.mu.Lock()
-	defer a.mu.Unlock()
+	oldSessionID := a.Session.ID
 	a.Session = NewSession(a.ID)
+	a.mu.Unlock()
+
+	DeleteSessionFromContext(oldSessionID)
 }
 
 func (a *Agent) SetDebug(debug bool) {

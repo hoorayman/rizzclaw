@@ -66,6 +66,11 @@ func SaveSessionToContext(session *Session) error {
 	return mgr.SaveSession(ctxSession)
 }
 
+func DeleteSessionFromContext(sessionID string) error {
+	mgr := ctxmgr.GetSessionManager()
+	return mgr.DeleteSession(sessionID)
+}
+
 func LoadSessionFromContext(sessionID string) (*Session, error) {
 	mgr := ctxmgr.GetSessionManager()
 
