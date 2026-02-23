@@ -86,19 +86,28 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
+func printLogo() {
+	logo := `
+       ▐██████▌            
+      ▐██  ●  ●  ██▌        
+      ▝████████▘            
+        ▘▘    ▝▝       `
+	fmt.Println(logo)
+}
+
 func runChat(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 
 	ctxMgr := ctxmgr.GetManager()
 	_ = ctxMgr
-	
+
 	memStore := ctxmgr.GetMemoryStore()
 	_ = memStore
-	
+
 	sessMgr := ctxmgr.GetSessionManager()
 	_ = sessMgr
-	
+
 	sessMgr.CleanupOldSessions(100)
 	memStore.CleanupOldMemories(10000)
 
@@ -154,6 +163,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 		ag.SetDebug(true)
 	}
 
+	printLogo()
 	fmt.Println("RizzClaw Chat")
 	fmt.Printf("Model: %s\n", flagModel)
 	if flagDebug {
