@@ -149,32 +149,31 @@ func webSearchBing(ctx context.Context, query string, count int) (string, error)
 func parseBingResults(html string, maxCount int) []SearchResult {
 	results := make([]SearchResult, 0)
 
-	re := regexp.MustCompile(`<li class="b_algo"[^>]*>[\s\S]*?<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a></h2>[\s\S]*?<div class="b_caption"[^>]*>[\s\S]*?<p>([\s\S]*?)</p>`)
+	re := regexp.MustCompile(`<li class="b_algo"[^>]*>[\s\S]*?<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a></h2>`)
 	matches := re.FindAllStringSubmatch(html, -1)
 
 	for i, match := range matches {
 		if i >= maxCount {
 			break
 		}
-		if len(match) >= 4 {
-			url := match[1]
+		if len(match) >= 3 {
+			resultURL := match[1]
 			title := cleanHTMLTags(match[2])
-			snippet := cleanHTMLTags(match[3])
 
-			if strings.HasPrefix(url, "/") {
+			if strings.HasPrefix(resultURL, "/") || strings.Contains(resultURL, "bing.com") {
 				continue
 			}
 
 			results = append(results, SearchResult{
 				Title:   title,
-				URL:     url,
-				Snippet: snippet,
+				URL:     resultURL,
+				Snippet: "",
 			})
 		}
 	}
 
 	if len(results) == 0 {
-		re2 := regexp.MustCompile(`<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a></h2>`)
+		re2 := regexp.MustCompile(`<a[^>]*href="(https?://[^"]+)"[^>]*><h2[^>]*>([\s\S]*?)</h2>`)
 		matches2 := re2.FindAllStringSubmatch(html, -1)
 
 		for i, match := range matches2 {
@@ -182,16 +181,16 @@ func parseBingResults(html string, maxCount int) []SearchResult {
 				break
 			}
 			if len(match) >= 3 {
-				url := match[1]
+				resultURL := match[1]
 				title := cleanHTMLTags(match[2])
 
-				if strings.HasPrefix(url, "/") || strings.Contains(url, "bing.com") {
+				if strings.Contains(resultURL, "bing.com") || strings.Contains(resultURL, "microsoft.com") {
 					continue
 				}
 
 				results = append(results, SearchResult{
 					Title:   title,
-					URL:     url,
+					URL:     resultURL,
 					Snippet: "",
 				})
 			}
