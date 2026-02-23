@@ -7,10 +7,21 @@ import (
 	"sync"
 	"time"
 
+	ctxmgr "github.com/hoorayman/rizzclaw/internal/context"
 	"github.com/hoorayman/rizzclaw/internal/llm"
 	"github.com/hoorayman/rizzclaw/internal/minimax"
 	"github.com/hoorayman/rizzclaw/internal/tools"
 )
+
+const defaultBasePrompt = `You are RizzClaw, an AI coding assistant powered by MiniMax.
+
+You help users with software engineering tasks including:
+- Reading, writing, and editing files
+- Executing shell commands
+- Code analysis and debugging
+- Answering questions about codebases
+
+Be helpful, accurate, and follow the user's coding style preferences.`
 
 type Agent struct {
 	ID           string
@@ -79,6 +90,11 @@ func NewAgent(id string, opts ...AgentOption) (*Agent, error) {
 		if err := opt(agent); err != nil {
 			return nil, err
 		}
+	}
+
+	if agent.SystemPrompt == "" {
+		mgr := ctxmgr.GetManager()
+		agent.SystemPrompt = mgr.BuildSystemPrompt(defaultBasePrompt)
 	}
 
 	return agent, nil

@@ -222,6 +222,21 @@ func (m *Manager) LoadBootstrapFiles() []*BootstrapFile {
 func (m *Manager) BuildSystemPrompt(basePrompt string) string {
 	var buf bytes.Buffer
 	
+	identity := m.GetFile(IdentityFilename)
+	if identity.Content != "" {
+		parsed := ParseIdentityMarkdown(identity.Content)
+		if parsed.Name != "" {
+			buf.WriteString(fmt.Sprintf("Your name is %s. ", parsed.Name))
+		}
+		if parsed.Emoji != "" {
+			buf.WriteString(fmt.Sprintf("Your emoji is %s. ", parsed.Emoji))
+		}
+		if parsed.Vibe != "" {
+			buf.WriteString(fmt.Sprintf("Your style is: %s. ", parsed.Vibe))
+		}
+		buf.WriteString("\n\n")
+	}
+	
 	buf.WriteString(basePrompt)
 	buf.WriteString("\n\n")
 	
@@ -235,6 +250,9 @@ func (m *Manager) BuildSystemPrompt(basePrompt string) string {
 	
 	for _, file := range files {
 		cf := m.GetFile(file.Name)
+		if cf.Content == "" {
+			continue
+		}
 		buf.WriteString(fmt.Sprintf("## %s\n\n", file.Name))
 		buf.WriteString(cf.Content)
 		if cf.Truncated {
