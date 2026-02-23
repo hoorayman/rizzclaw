@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	ctxmgr "github.com/hoorayman/rizzclaw/internal/context"
@@ -145,15 +146,24 @@ func CompactSession(session *Session) bool {
 		return false
 	}
 
-	var summaryContent string
-	for i := 0; i < compactCount; i++ {
-		msg := session.Messages[i]
-		summaryContent += fmt.Sprintf("[%s]: %s\n", msg.Role, msg.Content)
+	messagesToCompact := session.Messages[:compactCount]
+
+	var topics []string
+	for _, msg := range messagesToCompact {
+		if msg.Role == "user" {
+			topics = append(topics, msg.Content)
+		}
 	}
+
+	summaryContent := fmt.Sprintf(
+		"[Earlier conversation summary: %d messages about %s]",
+		compactCount,
+		strings.Join(topics[:min(5, len(topics))], ", "),
+	)
 
 	summaryMsg := Message{
 		Role:      "system",
-		Content:   fmt.Sprintf("[Summary of earlier conversation]\n%s", summaryContent),
+		Content:   summaryContent,
 		Timestamp: time.Now(),
 	}
 
@@ -161,4 +171,11 @@ func CompactSession(session *Session) bool {
 	session.UpdatedAt = time.Now()
 
 	return true
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

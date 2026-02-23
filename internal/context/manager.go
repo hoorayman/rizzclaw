@@ -248,17 +248,36 @@ func (m *Manager) BuildSystemPrompt(basePrompt string) string {
 	buf.WriteString("# Project Context\n\n")
 	buf.WriteString("The following project context files have been loaded:\n\n")
 	
+	totalChars := 0
+	maxTotalChars := m.config.BootstrapTotalMaxChars
+	maxFileChars := m.config.BootstrapMaxChars
+	
 	for _, file := range files {
 		cf := m.GetFile(file.Name)
 		if cf.Content == "" {
 			continue
 		}
-		buf.WriteString(fmt.Sprintf("## %s\n\n", file.Name))
-		buf.WriteString(cf.Content)
-		if cf.Truncated {
-			buf.WriteString(fmt.Sprintf("\n\n[Content truncated, original length: %d chars]", cf.OriginalLen))
+		
+		content := cf.Content
+		if len(content) > maxFileChars {
+			content = content[:maxFileChars] + "\n... [truncated]"
 		}
+		
+		if totalChars+len(content) > maxTotalChars {
+			remaining := maxTotalChars - totalChars
+			if remaining > 100 {
+				content = content[:remaining] + "\n... [total limit reached]"
+				buf.WriteString(fmt.Sprintf("## %s\n\n", file.Name))
+				buf.WriteString(content)
+				buf.WriteString("\n\n")
+			}
+			break
+		}
+		
+		buf.WriteString(fmt.Sprintf("## %s\n\n", file.Name))
+		buf.WriteString(content)
 		buf.WriteString("\n\n")
+		totalChars += len(content)
 	}
 	
 	soulContent := m.GetFile(SoulFilename).Content

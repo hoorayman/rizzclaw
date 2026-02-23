@@ -493,7 +493,13 @@ func (sm *SessionManager) AppendToMemory(content string) error {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	entry := fmt.Sprintf("\n## [%s]\n%s\n", timestamp, content)
 	
-	return ctxMgr.AppendToFile(MemoryFilename, entry)
+	if err := ctxMgr.AppendToFile(MemoryFilename, entry); err != nil {
+		return err
+	}
+	
+	sm.checkMemoryFileSize()
+	
+	return nil
 }
 
 func (sm *SessionManager) SaveImportantMemory(content string, isEvergreen bool) error {
@@ -508,7 +514,80 @@ func (sm *SessionManager) SaveImportantMemory(content string, isEvergreen bool) 
 		entry = fmt.Sprintf("\n## [%s]\n%s\n", timestamp, content)
 	}
 	
-	return ctxMgr.AppendToFile(MemoryFilename, entry)
+	if err := ctxMgr.AppendToFile(MemoryFilename, entry); err != nil {
+		return err
+	}
+	
+	sm.checkMemoryFileSize()
+	
+	return nil
+}
+
+const MaxMemoryFileSize = 100000
+
+func (sm *SessionManager) checkMemoryFileSize() {
+	ctxMgr := GetManager()
+	cf := ctxMgr.GetFile(MemoryFilename)
+	
+	if cf == nil || cf.Size < MaxMemoryFileSize {
+		return
+	}
+	
+	sm.archiveMemoryFile()
+}
+
+func (sm *SessionManager) archiveMemoryFile() error {
+	ctxMgr := GetManager()
+	cf := ctxMgr.GetFile(MemoryFilename)
+	
+	if cf == nil || cf.Content == "" {
+		return nil
+	}
+	
+	store := GetMemoryStore()
+	
+	sections := strings.Split(cf.Content, "\n## ")
+	
+	for _, section := range sections {
+		if strings.TrimSpace(section) == "" {
+			continue
+		}
+		
+		lines := strings.SplitN(section, "\n", 2)
+		if len(lines) < 2 {
+			continue
+		}
+		
+		header := strings.TrimSpace(lines[0])
+		body := strings.TrimSpace(lines[1])
+		
+		isEvergreen := strings.Contains(header, "EVERGREEN")
+		
+		entry := &MemoryEntry{
+			ID:          generateMemoryID(),
+			Content:     body,
+			Source:      "MEMORY.md",
+			CreatedAt:   time.Now(),
+			IsEvergreen: isEvergreen,
+		}
+		
+		store.AddMemory(nil, entry)
+	}
+	
+	evergreenContent := ""
+	for _, section := range sections {
+		if strings.Contains(section, "EVERGREEN") {
+			evergreenContent += "## " + section + "\n"
+		}
+	}
+	
+	if evergreenContent != "" {
+		ctxMgr.SaveFile(MemoryFilename, "# MEMORY.md - Long-term Memory\n\n## Evergreen Memories\n\n"+evergreenContent)
+	} else {
+		ctxMgr.SaveFile(MemoryFilename, "# MEMORY.md - Long-term Memory\n\n(Memories archived to database)\n")
+	}
+	
+	return nil
 }
 
 func CalculateTemporalDecay(ageInDays, halfLifeDays float64) float64 {
