@@ -143,6 +143,14 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 		Timestamp: timeNow(),
 	})
 	a.Session.UpdatedAt = timeNow()
+
+	if ShouldCompactSession(a.Session) {
+		compacted := CompactSession(a.Session)
+		if compacted {
+			fmt.Println("\n[Session compressed]")
+		}
+	}
+
 	a.mu.Unlock()
 
 	go func() {

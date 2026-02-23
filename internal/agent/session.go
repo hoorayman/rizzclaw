@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	ctxmgr "github.com/hoorayman/rizzclaw/internal/context"
@@ -110,4 +111,54 @@ func generateMsgID() string {
 
 func estimateMsgTokens(text string) int {
 	return len(text) / 4
+}
+
+const (
+	MaxSessionTokens    = 128000
+	MinMessagesToKeep   = 10
+	CompactionThreshold = 0.5
+	CompactionRatio     = 0.4
+)
+
+func ShouldCompactSession(session *Session) bool {
+	if session == nil || len(session.Messages) < MinMessagesToKeep*2 {
+		return false
+	}
+
+	totalTokens := 0
+	for _, msg := range session.Messages {
+		totalTokens += estimateMsgTokens(msg.Content)
+	}
+
+	return totalTokens > int(float64(MaxSessionTokens)*CompactionThreshold)
+}
+
+func CompactSession(session *Session) bool {
+	if !ShouldCompactSession(session) {
+		return false
+	}
+
+	totalMessages := len(session.Messages)
+	compactCount := int(float64(totalMessages-MinMessagesToKeep) * CompactionRatio)
+
+	if compactCount <= 0 {
+		return false
+	}
+
+	var summaryContent string
+	for i := 0; i < compactCount; i++ {
+		msg := session.Messages[i]
+		summaryContent += fmt.Sprintf("[%s]: %s\n", msg.Role, msg.Content)
+	}
+
+	summaryMsg := Message{
+		Role:      "system",
+		Content:   fmt.Sprintf("[Summary of earlier conversation]\n%s", summaryContent),
+		Timestamp: time.Now(),
+	}
+
+	session.Messages = append([]Message{summaryMsg}, session.Messages[compactCount:]...)
+	session.UpdatedAt = time.Now()
+
+	return true
 }

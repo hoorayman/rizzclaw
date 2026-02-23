@@ -218,14 +218,20 @@ func (s *MemoryStore) Search(ctx context.Context, opts *SearchOptions) ([]*Searc
 	
 	var results []*SearchResult
 	
-	vectorResults, err := s.vectorSearch(ctx, opts)
-	if err == nil && len(vectorResults) > 0 {
-		results = append(results, vectorResults...)
+	if s.provider != nil {
+		vectorResults, err := s.vectorSearch(ctx, opts)
+		if err == nil && len(vectorResults) > 0 {
+			results = append(results, vectorResults...)
+		}
 	}
 	
 	keywordResults, err := s.keywordSearch(opts)
 	if err == nil && len(keywordResults) > 0 {
 		results = append(results, keywordResults...)
+	}
+	
+	if len(results) == 0 {
+		return nil, nil
 	}
 	
 	results = s.mergeResults(results, opts)
