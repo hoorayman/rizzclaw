@@ -4,17 +4,9 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/hoorayman/rizzclaw/internal/llm"
 )
-
-type Message struct {
-	Role      llm.MessageRole
-	Content   string
-	Timestamp time.Time
-	Metadata  map[string]any
-}
 
 type Tool struct {
 	Name        string

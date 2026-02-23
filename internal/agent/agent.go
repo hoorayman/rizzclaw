@@ -103,7 +103,7 @@ func NewAgent(id string, opts ...AgentOption) (*Agent, error) {
 func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 	a.mu.Lock()
 	a.Session.Messages = append(a.Session.Messages, Message{
-		Role:      llm.RoleUser,
+		Role:      string(llm.RoleUser),
 		Content:   input,
 		Timestamp: timeNow(),
 	})
@@ -138,11 +138,16 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 
 	a.mu.Lock()
 	a.Session.Messages = append(a.Session.Messages, Message{
-		Role:      llm.RoleAssistant,
+		Role:      string(llm.RoleAssistant),
 		Content:   response,
 		Timestamp: timeNow(),
 	})
+	a.Session.UpdatedAt = timeNow()
 	a.mu.Unlock()
+
+	go func() {
+		SaveSessionToContext(a.Session)
+	}()
 
 	return response, nil
 }
@@ -150,7 +155,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 func (a *Agent) RunWithTools(ctx context.Context, input string, maxIterations int) (string, error) {
 	a.mu.Lock()
 	a.Session.Messages = append(a.Session.Messages, Message{
-		Role:      llm.RoleUser,
+		Role:      string(llm.RoleUser),
 		Content:   input,
 		Timestamp: timeNow(),
 	})
@@ -178,7 +183,7 @@ func (a *Agent) RunWithTools(ctx context.Context, input string, maxIterations in
 
 	a.mu.Lock()
 	a.Session.Messages = append(a.Session.Messages, Message{
-		Role:      llm.RoleAssistant,
+		Role:      string(llm.RoleAssistant),
 		Content:   response,
 		Timestamp: timeNow(),
 	})
@@ -194,7 +199,7 @@ func (a *Agent) convertMessages() []llm.Message {
 	messages := make([]llm.Message, len(a.Session.Messages))
 	for i, msg := range a.Session.Messages {
 		messages[i] = llm.Message{
-			Role: msg.Role,
+			Role: llm.MessageRole(msg.Role),
 			Content: []llm.ContentBlock{
 				{
 					Type: "text",
