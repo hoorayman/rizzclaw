@@ -45,9 +45,11 @@ type Message struct {
 }
 
 type ToolParameterProperty struct {
-	Type        string   `json:"type"`
-	Description string   `json:"description,omitempty"`
-	Enum        []string `json:"enum,omitempty"`
+	Type        string                           `json:"type"`
+	Description string                           `json:"description,omitempty"`
+	Enum        []string                         `json:"enum,omitempty"`
+	Items       *ToolParameterProperty           `json:"items,omitempty"`
+	Properties  map[string]ToolParameterProperty `json:"properties,omitempty"`
 }
 
 type InputSchema struct {
