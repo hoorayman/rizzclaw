@@ -96,6 +96,9 @@ func runChat(cmd *cobra.Command, args []string) error {
 	
 	sessMgr := ctxmgr.GetSessionManager()
 	_ = sessMgr
+	
+	sessMgr.CleanupOldSessions(100)
+	memStore.CleanupOldMemories(10000)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

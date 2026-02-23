@@ -506,6 +506,34 @@ func (s *MemoryStore) Count() (int, error) {
 	return count, err
 }
 
+func (s *MemoryStore) CleanupOldMemories(maxMemories int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM memories`).Scan(&count)
+	if err != nil {
+		return err
+	}
+	
+	if count <= maxMemories {
+		return nil
+	}
+	
+	deleteCount := count - maxMemories
+	
+	_, err = s.db.Exec(`
+		DELETE FROM memories WHERE id IN (
+			SELECT id FROM memories 
+			WHERE is_evergreen = 0 
+			ORDER BY created_at ASC 
+			LIMIT ?
+		)
+	`, deleteCount)
+	
+	return err
+}
+
 func (s *MemoryStore) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

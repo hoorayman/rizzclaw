@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -228,6 +229,42 @@ func (sm *SessionManager) ListSessions() ([]string, error) {
 func (sm *SessionManager) DeleteSession(sessionID string) error {
 	path := filepath.Join(sm.sessionsDir, sessionID+".jsonl")
 	return os.Remove(path)
+}
+
+func (sm *SessionManager) CleanupOldSessions(maxSessions int) error {
+	sessions, err := sm.ListSessions()
+	if err != nil {
+		return err
+	}
+	
+	if len(sessions) <= maxSessions {
+		return nil
+	}
+	
+	type sessionInfo struct {
+		id        string
+		modTime   time.Time
+	}
+	
+	var sessionInfos []sessionInfo
+	for _, id := range sessions {
+		path := filepath.Join(sm.sessionsDir, id+".jsonl")
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		sessionInfos = append(sessionInfos, sessionInfo{id: id, modTime: info.ModTime()})
+	}
+	
+	sort.Slice(sessionInfos, func(i, j int) bool {
+		return sessionInfos[i].modTime.After(sessionInfos[j].modTime)
+	})
+	
+	for i := maxSessions; i < len(sessionInfos); i++ {
+		sm.DeleteSession(sessionInfos[i].id)
+	}
+	
+	return nil
 }
 
 func (sm *SessionManager) ShouldCompact(session *Session) bool {
