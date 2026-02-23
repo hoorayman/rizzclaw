@@ -85,11 +85,18 @@ func WebSearch(ctx context.Context, input map[string]any) (string, error) {
 	}
 
 	apiKey := os.Getenv("BRAVE_API_KEY")
-	if apiKey == "" {
-		return webSearchDuckDuckGo(ctx, query, count)
+	if apiKey != "" {
+		result, err := webSearchBrave(ctx, query, count, apiKey)
+		if err == nil {
+			return result, nil
+		}
 	}
 
-	return webSearchBrave(ctx, query, count, apiKey)
+	result, err := webSearchDuckDuckGo(ctx, query, count)
+	if err != nil {
+		return "", fmt.Errorf("web search failed: %w (try setting BRAVE_API_KEY for better results)", err)
+	}
+	return result, nil
 }
 
 func webSearchBrave(ctx context.Context, query string, count int, apiKey string) (string, error) {
@@ -149,11 +156,22 @@ func webSearchDuckDuckGo(ctx context.Context, query string, count int) (string, 
 	endpoint := fmt.Sprintf("https://api.duckduckgo.com/?q=%s&format=json&no_html=1", url.QueryEscape(query))
 
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(endpoint)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch search results: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("DuckDuckGo API returned status %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
