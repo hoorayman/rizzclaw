@@ -101,11 +101,6 @@ func WebSearch(ctx context.Context, input map[string]any) (string, error) {
 		}
 	}
 
-	result, err := webSearchDuckDuckGo(ctx, query, count)
-	if err == nil {
-		return result, nil
-	}
-
 	return webSearchBing(ctx, query, count)
 }
 
