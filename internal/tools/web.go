@@ -199,27 +199,57 @@ func webSearchBing(ctx context.Context, query string, count int) (string, error)
 func parseBingResults(html string, maxCount int) []SearchResult {
 	results := make([]SearchResult, 0)
 
-	re := regexp.MustCompile(`<li class="b_algo"[^>]*>[\s\S]*?<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a></h2>`)
-	matches := re.FindAllStringSubmatch(html, -1)
+	re := regexp.MustCompile(`<li class="b_algo"[^>]*>([\s\S]*?)</li>`)
+	items := re.FindAllStringSubmatch(html, -1)
 
-	for i, match := range matches {
+	for i, item := range items {
 		if i >= maxCount {
 			break
 		}
-		if len(match) >= 3 {
-			resultURL := match[1]
-			title := cleanHTMLTags(match[2])
-
-			if strings.HasPrefix(resultURL, "/") || strings.Contains(resultURL, "bing.com") {
-				continue
-			}
-
-			results = append(results, SearchResult{
-				Title:   title,
-				URL:     resultURL,
-				Snippet: "",
-			})
+		if len(item) < 2 {
+			continue
 		}
+		itemHTML := item[1]
+
+		linkRe := regexp.MustCompile(`<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a>`)
+		linkMatch := linkRe.FindStringSubmatch(itemHTML)
+		if len(linkMatch) < 3 {
+			continue
+		}
+
+		resultURL := linkMatch[1]
+		title := cleanHTMLTags(linkMatch[2])
+
+		if strings.HasPrefix(resultURL, "/") || strings.Contains(resultURL, "bing.com") {
+			continue
+		}
+
+		snippet := ""
+		snippetRe := regexp.MustCompile(`<div[^>]*class="b_caption"[^>]*>[\s\S]*?<p>([\s\S]*?)</p>`)
+		snippetMatch := snippetRe.FindStringSubmatch(itemHTML)
+		if len(snippetMatch) > 1 {
+			snippet = cleanHTMLTags(snippetMatch[1])
+		}
+		if snippet == "" {
+			snippetRe2 := regexp.MustCompile(`<p[^>]*class="b_lineclamp[^"]*"[^>]*>([\s\S]*?)</p>`)
+			snippetMatch2 := snippetRe2.FindStringSubmatch(itemHTML)
+			if len(snippetMatch2) > 1 {
+				snippet = cleanHTMLTags(snippetMatch2[1])
+			}
+		}
+		if snippet == "" {
+			snippetRe3 := regexp.MustCompile(`<span[^>]*class="news_dt"[^>]*>([\s\S]*?)</span>`)
+			snippetMatch3 := snippetRe3.FindStringSubmatch(itemHTML)
+			if len(snippetMatch3) > 1 {
+				snippet = cleanHTMLTags(snippetMatch3[1])
+			}
+		}
+
+		results = append(results, SearchResult{
+			Title:   title,
+			URL:     resultURL,
+			Snippet: snippet,
+		})
 	}
 
 	if len(results) == 0 {
@@ -400,16 +430,19 @@ func extractTitle(text string) string {
 }
 
 func formatSearchResults(query string, results []SearchResult) (string, error) {
-	var output string
-	output = fmt.Sprintf("Search results for: %s\n\n", query)
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Found %d search results for: %s\n\n", len(results), query))
 
 	for i, r := range results {
-		output += fmt.Sprintf("%d. %s\n", i+1, r.Title)
-		output += fmt.Sprintf("   URL: %s\n", r.URL)
-		output += fmt.Sprintf("   %s\n\n", r.Snippet)
+		output.WriteString(fmt.Sprintf("【%d】%s\n", i+1, r.Title))
+		output.WriteString(fmt.Sprintf("链接: %s\n", r.URL))
+		if r.Snippet != "" {
+			output.WriteString(fmt.Sprintf("摘要: %s\n", r.Snippet))
+		}
+		output.WriteString("\n")
 	}
 
-	return output, nil
+	return output.String(), nil
 }
 
 func WebFetch(ctx context.Context, input map[string]any) (string, error) {
