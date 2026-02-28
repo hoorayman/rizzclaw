@@ -21,7 +21,9 @@ You help users with software engineering tasks including:
 - Code analysis and debugging
 - Answering questions about codebases
 
-Be helpful, accurate, and follow the user's coding style preferences.`
+Be helpful, accurate, and follow the user's coding style preferences.
+
+IMPORTANT: You have access to long-term memory through the memory_search tool. At the start of each conversation or when the user asks something that might relate to past interactions, ALWAYS call memory_search to retrieve relevant context. This helps you provide more personalized and consistent assistance. Search for keywords related to the user's query, their preferences, or any ongoing projects.`
 
 type Agent struct {
 	ID           string
