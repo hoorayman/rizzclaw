@@ -100,6 +100,7 @@ func WebSearch(ctx context.Context, input map[string]any) (string, error) {
 		}
 	}
 
+	// Try Brave API first if key is available
 	apiKey := os.Getenv("BRAVE_API_KEY")
 	if apiKey != "" {
 		result, err := webSearchBrave(ctx, query, count, apiKey)
@@ -108,7 +109,8 @@ func WebSearch(ctx context.Context, input map[string]any) (string, error) {
 		}
 	}
 
-	return webSearchBing(ctx, query, count)
+	// Use DuckDuckGo HTML search as default (more reliable than Bing scraping)
+	return webSearchDuckDuckGo(ctx, query, count)
 }
 
 func webSearchBing(ctx context.Context, query string, count int) (string, error) {
@@ -321,7 +323,8 @@ func webSearchBrave(ctx context.Context, query string, count int, apiKey string)
 }
 
 func webSearchDuckDuckGo(ctx context.Context, query string, count int) (string, error) {
-	endpoint := fmt.Sprintf("https://api.duckduckgo.com/?q=%s&format=json&no_html=1", url.QueryEscape(query))
+	// Use DuckDuckGo HTML interface instead of API for better results
+	endpoint := fmt.Sprintf("https://html.duckduckgo.com/html/?q=%s", url.QueryEscape(query))
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
@@ -329,9 +332,8 @@ func webSearchDuckDuckGo(ctx context.Context, query string, count int) (string, 
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
-	for k, v := range browserHeaders {
-		req.Header.Set(k, v)
-	}
+	// Use simple User-Agent to avoid being blocked
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -340,7 +342,7 @@ func webSearchDuckDuckGo(ctx context.Context, query string, count int) (string, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("DuckDuckGo API returned status %d", resp.StatusCode)
+		return "", fmt.Errorf("DuckDuckGo returned status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -348,49 +350,66 @@ func webSearchDuckDuckGo(ctx context.Context, query string, count int) (string, 
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
-	var ddgResp struct {
-		AbstractText   string `json:"AbstractText"`
-		AbstractURL    string `json:"AbstractURL"`
-		AbstractSource string `json:"AbstractSource"`
-		Heading        string `json:"Heading"`
-		RelatedTopics  []struct {
-			Text string `json:"Text"`
-			URL  string `json:"FirstURL"`
-		} `json:"RelatedTopics"`
+	return extractDuckDuckGoResults(string(body), count, query)
+}
+
+func extractDuckDuckGoResults(html string, count int, query string) (string, error) {
+	// Extract result links: <a class="result__a" href="...">Title</a>
+	reLink := regexp.MustCompile(`<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a>`)
+	matches := reLink.FindAllStringSubmatch(html, count+5)
+
+	if len(matches) == 0 {
+		return fmt.Sprintf("No results found for: %s", query), nil
 	}
 
-	if err := json.Unmarshal(body, &ddgResp); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
-	}
+	// Extract snippets: <a class="result__snippet" ...>Snippet</a>
+	reSnippet := regexp.MustCompile(`<a class="result__snippet[^"]*".*?>([\s\S]*?)</a>`)
+	snippetMatches := reSnippet.FindAllStringSubmatch(html, count+5)
 
-	results := make([]SearchResult, 0)
+	var lines []string
+	lines = append(lines, fmt.Sprintf("Results for: %s (via DuckDuckGo)", query))
 
-	if ddgResp.AbstractText != "" {
-		results = append(results, SearchResult{
-			Title:   ddgResp.Heading,
-			URL:     ddgResp.AbstractURL,
-			Snippet: ddgResp.AbstractText,
-		})
-	}
+	maxItems := min(len(matches), count)
+	for i := 0; i < maxItems; i++ {
+		urlStr := matches[i][1]
+		title := stripTags(matches[i][2])
+		title = strings.TrimSpace(title)
 
-	for i, topic := range ddgResp.RelatedTopics {
-		if i >= count-1 {
-			break
+		// Decode DuckDuckGo redirect URL if present
+		if strings.Contains(urlStr, "uddg=") {
+			if u, err := url.QueryUnescape(urlStr); err == nil {
+				idx := strings.Index(u, "uddg=")
+				if idx != -1 {
+					urlStr = u[idx+5:]
+				}
+			}
 		}
-		if topic.Text != "" {
-			results = append(results, SearchResult{
-				Title:   extractTitle(topic.Text),
-				URL:     topic.URL,
-				Snippet: topic.Text,
-			})
+
+		lines = append(lines, fmt.Sprintf("%d. %s\n   %s", i+1, title, urlStr))
+
+		// Add snippet if available
+		if i < len(snippetMatches) {
+			snippet := stripTags(snippetMatches[i][1])
+			snippet = strings.TrimSpace(snippet)
+			if snippet != "" {
+				lines = append(lines, fmt.Sprintf("   %s", snippet))
+			}
 		}
 	}
 
-	if len(results) == 0 {
-		return "", fmt.Errorf("no results from DuckDuckGo")
-	}
+	return strings.Join(lines, "\n"), nil
+}
 
-	return formatSearchResults(query, results)
+func stripTags(content string) string {
+	re := regexp.MustCompile(`<[^>]+>`)
+	return re.ReplaceAllString(content, "")
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func extractTitle(text string) string {
