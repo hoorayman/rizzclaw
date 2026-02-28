@@ -181,7 +181,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 		default:
 		}
 
-		fmt.Print("You: ")
+		fmt.Print("👤 You: ")
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			return fmt.Errorf("failed to read input: %w", err)
@@ -208,7 +208,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		fmt.Print("\nAssistant: ")
+		fmt.Print("\n🤖 Assistant: ")
 		response, err := ag.Run(ctx, input)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
