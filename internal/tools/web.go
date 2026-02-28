@@ -326,7 +326,12 @@ func webSearchDuckDuckGo(ctx context.Context, query string, count int) (string, 
 	// Use DuckDuckGo HTML interface instead of API for better results
 	endpoint := fmt.Sprintf("https://html.duckduckgo.com/html/?q=%s", url.QueryEscape(query))
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	// Create HTTP client with proxy support
+	client, err := createHTTPClientWithProxy()
+	if err != nil {
+		return "", fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
@@ -351,6 +356,43 @@ func webSearchDuckDuckGo(ctx context.Context, query string, count int) (string, 
 	}
 
 	return extractDuckDuckGoResults(string(body), count, query)
+}
+
+// createHTTPClientWithProxy creates an HTTP client with optional proxy support
+func createHTTPClientWithProxy() (*http.Client, error) {
+	transport := &http.Transport{
+		MaxIdleConns:        10,
+		IdleConnTimeout:     30 * time.Second,
+		DisableCompression:  false,
+		TLSHandshakeTimeout: 15 * time.Second,
+	}
+
+	// Check for proxy environment variables
+	proxyURL := os.Getenv("HTTP_PROXY")
+	if proxyURL == "" {
+		proxyURL = os.Getenv("http_proxy")
+	}
+	if proxyURL == "" {
+		proxyURL = os.Getenv("HTTPS_PROXY")
+	}
+	if proxyURL == "" {
+		proxyURL = os.Getenv("https_proxy")
+	}
+
+	if proxyURL != "" {
+		parsedURL, err := url.Parse(proxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid proxy URL: %w", err)
+		}
+		transport.Proxy = http.ProxyURL(parsedURL)
+	} else {
+		transport.Proxy = http.ProxyFromEnvironment
+	}
+
+	return &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+	}, nil
 }
 
 func extractDuckDuckGoResults(html string, count int, query string) (string, error) {
