@@ -219,9 +219,48 @@ func (m *Manager) LoadBootstrapFiles() []*BootstrapFile {
 	return files
 }
 
+// extractEvergreenMemories extracts only EVERGREEN memories from MEMORY.md content
+func extractEvergreenMemories(content string) string {
+	if content == "" {
+		return ""
+	}
+
+	var evergreenSections []string
+	sections := strings.Split(content, "\n## ")
+
+	for _, section := range sections {
+		section = strings.TrimSpace(section)
+		if section == "" {
+			continue
+		}
+		// Check if this section contains EVERGREEN marker
+		if strings.Contains(section, "[EVERGREEN") || strings.Contains(section, "EVERGREEN") {
+			// Extract the header and content
+			lines := strings.SplitN(section, "\n", 2)
+			if len(lines) >= 2 {
+				header := strings.TrimSpace(lines[0])
+				body := strings.TrimSpace(lines[1])
+				// Reconstruct the section with proper markdown header
+				if !strings.HasPrefix(header, "#") {
+					header = "## " + header
+				}
+				evergreenSections = append(evergreenSections, header+"\n"+body)
+			} else {
+				evergreenSections = append(evergreenSections, section)
+			}
+		}
+	}
+
+	if len(evergreenSections) == 0 {
+		return ""
+	}
+
+	return strings.Join(evergreenSections, "\n\n")
+}
+
 func (m *Manager) BuildSystemPrompt(basePrompt string) string {
 	var buf bytes.Buffer
-	
+
 	identity := m.GetFile(IdentityFilename)
 	if identity.Content != "" {
 		parsed := ParseIdentityMarkdown(identity.Content)
@@ -236,33 +275,42 @@ func (m *Manager) BuildSystemPrompt(basePrompt string) string {
 		}
 		buf.WriteString("\n\n")
 	}
-	
+
 	buf.WriteString(basePrompt)
 	buf.WriteString("\n\n")
-	
+
 	files := m.LoadBootstrapFiles()
 	if len(files) == 0 {
 		return buf.String()
 	}
-	
+
 	buf.WriteString("# Project Context\n\n")
 	buf.WriteString("The following project context files have been loaded:\n\n")
-	
+
 	totalChars := 0
 	maxTotalChars := m.config.BootstrapTotalMaxChars
 	maxFileChars := m.config.BootstrapMaxChars
-	
+
 	for _, file := range files {
 		cf := m.GetFile(file.Name)
 		if cf.Content == "" {
 			continue
 		}
-		
+
 		content := cf.Content
+
+		// For MEMORY.md, only extract EVERGREEN memories
+		if file.Name == MemoryFilename {
+			content = extractEvergreenMemories(content)
+			if content == "" {
+				continue
+			}
+		}
+
 		if len(content) > maxFileChars {
 			content = content[:maxFileChars] + "\n... [truncated]"
 		}
-		
+
 		if totalChars+len(content) > maxTotalChars {
 			remaining := maxTotalChars - totalChars
 			if remaining > 100 {
@@ -273,19 +321,19 @@ func (m *Manager) BuildSystemPrompt(basePrompt string) string {
 			}
 			break
 		}
-		
+
 		buf.WriteString(fmt.Sprintf("## %s\n\n", file.Name))
 		buf.WriteString(content)
 		buf.WriteString("\n\n")
 		totalChars += len(content)
 	}
-	
+
 	soulContent := m.GetFile(SoulFilename).Content
 	if soulContent != "" {
 		buf.WriteString("If SOUL.md is present, embody its persona and tone. ")
 		buf.WriteString("Avoid stiff, generic replies; follow its guidance unless higher-priority instructions override it.\n\n")
 	}
-	
+
 	return buf.String()
 }
 
