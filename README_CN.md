@@ -130,8 +130,12 @@ type SearchOptions struct {
 ### 🛠️ 其他特性
 
 - 🤖 **AI 驱动** - 基于 MiniMax M2.1/M2.5 等先进大语言模型
-- � **丰富工具** - 内置文件操作、代码执行、Web 搜索等多种工具
+- 🧰 **丰富工具** - 内置文件操作、代码执行、Web 搜索等多种工具
 - ⚡ **技能系统** - 支持加载自定义技能扩展
+- 🔍 **Web 搜索** - 使用 DuckDuckGo HTML 搜索，读取环境变量自动配置代理：
+  - `HTTP_PROXY` / `http_proxy` - HTTP 代理
+  - `HTTPS_PROXY` / `https_proxy` - HTTPS 代理
+  - `NO_PROXY` / `no_proxy` - 跳过代理的域名
 
 ## 技术栈
 

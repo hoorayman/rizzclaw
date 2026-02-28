@@ -133,6 +133,14 @@ type SearchOptions struct {
 - 📁 **Rich Tools** - Built-in file operations, code execution, web search, and more
 - ⚡ **Skill System** - Support for loading custom skill extensions
 
+### 🔍 Web Search
+
+- **DuckDuckGo Integration** - Uses DuckDuckGo HTML search instead of Bing for better accessibility
+- **Proxy Support** - Automatically reads proxy configuration from environment variables:
+  - `HTTP_PROXY` / `http_proxy` - HTTP proxy
+  - `HTTPS_PROXY` / `https_proxy` - HTTPS proxy
+  - `NO_PROXY` / `no_proxy` - Bypass proxy for specific hosts
+
 ## Tech Stack
 
 - **Language**: Go 1.23+
