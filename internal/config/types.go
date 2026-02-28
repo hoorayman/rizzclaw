@@ -44,7 +44,12 @@ type AgentsConfig struct {
 	Defaults AgentDefaultsConfig `json:"defaults" mapstructure:"defaults"`
 }
 
+type ToolsConfig struct {
+	Proxy string `json:"proxy,omitempty" mapstructure:"proxy"`
+}
+
 type Config struct {
 	Models ModelsConfig `json:"models" mapstructure:"models"`
 	Agents AgentsConfig `json:"agents" mapstructure:"agents"`
+	Tools  ToolsConfig  `json:"tools,omitempty" mapstructure:"tools"`
 }

@@ -11,11 +11,37 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/andybalholm/brotli"
+	"github.com/hoorayman/rizzclaw/internal/config"
 	"github.com/hoorayman/rizzclaw/internal/llm"
 )
+
+var (
+	proxyURL     string
+	proxyURLOnce sync.Once
+)
+
+// getProxyURL returns the proxy URL from config or environment
+func getProxyURL() string {
+	proxyURLOnce.Do(func() {
+		// Try config first
+		if cfg, err := config.LoadConfig(); err == nil && cfg.Tools.Proxy != "" {
+			proxyURL = cfg.Tools.Proxy
+			return
+		}
+		// Fall back to environment variables
+		for _, env := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"} {
+			if v := os.Getenv(env); v != "" {
+				proxyURL = v
+				return
+			}
+		}
+	})
+	return proxyURL
+}
 
 var browserHeaders = map[string]string{
 	"User-Agent":                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
@@ -367,25 +393,16 @@ func createHTTPClientWithProxy() (*http.Client, error) {
 		TLSHandshakeTimeout: 15 * time.Second,
 	}
 
-	// Check for proxy environment variables
-	proxyURL := os.Getenv("HTTP_PROXY")
-	if proxyURL == "" {
-		proxyURL = os.Getenv("http_proxy")
-	}
-	if proxyURL == "" {
-		proxyURL = os.Getenv("HTTPS_PROXY")
-	}
-	if proxyURL == "" {
-		proxyURL = os.Getenv("https_proxy")
-	}
-
-	if proxyURL != "" {
-		parsedURL, err := url.Parse(proxyURL)
+	// Check for proxy from config or environment
+	proxy := getProxyURL()
+	if proxy != "" {
+		parsedURL, err := url.Parse(proxy)
 		if err != nil {
-			return nil, fmt.Errorf("invalid proxy URL: %w", err)
+			return nil, fmt.Errorf("invalid proxy URL %q: %w", proxy, err)
 		}
 		transport.Proxy = http.ProxyURL(parsedURL)
 	} else {
+		// Fall back to system proxy settings
 		transport.Proxy = http.ProxyFromEnvironment
 	}
 
