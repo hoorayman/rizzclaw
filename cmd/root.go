@@ -208,7 +208,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		fmt.Print("\n🤖 Assistant: ")
+		fmt.Print("\n� Assistant: ")
 		response, err := ag.Run(ctx, input)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
