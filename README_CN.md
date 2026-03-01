@@ -23,6 +23,44 @@ RizzClaw 是一个由 AI 驱动的智能编程助手，基于 [MiniMax](https://
 
 ## ✨ 核心特性
 
+### 🚀 Gateway 多渠道支持
+
+RizzClaw 0.2.0 新增了 **Gateway 模式**，支持通过多种渠道与 AI 交互：
+
+- **飞书 (Feishu/Lark)** - 企业级即时通讯集成
+- **控制台 (Console)** - 命令行交互模式
+- **可扩展架构** - 易于添加 Telegram、Discord 等更多渠道
+
+#### Gateway 架构
+
+```
+┌─────────────────────────────────────────┐
+│              Gateway                    │
+│  ┌─────────┐    ┌──────────────┐       │
+│  │ Agent   │◄──►│  MessageBus  │       │
+│  │  Loop   │    │              │       │
+│  └─────────┘    └──────┬───────┘       │
+│         ▲              │                │
+│         │         ┌────┴────┐          │
+│         │         │ Channels│          │
+│         │         ├────┬────┤          │
+│         │         │飞书│Console│        │
+│         │         └────┴────┘          │
+│         ▲                              │
+│    LLM API                             │
+└─────────────────────────────────────────┘
+```
+
+#### 多用户会话隔离
+
+Gateway 模式支持多用户同时使用，每个用户/群组拥有独立的会话上下文：
+
+```
+用户 A 私聊 → feishu_chat_aaa_user_aaa.jsonl
+用户 B 私聊 → feishu_chat_bbb_user_bbb.jsonl
+群组聊天   → feishu_group_ccc_user_aaa.jsonl
+```
+
 ### 🧠 智能会话管理 (Session Auto-Summary)
 
 RizzClaw 内置了智能的会话压缩机制，能够在长对话中自动管理上下文窗口：
@@ -282,8 +320,14 @@ cp config.example.json ~/.rizzclaw/config.json
 # 查看帮助
 rizzclaw --help
 
-# 启动交互式对话
+# 启动交互式对话 (Console 模式)
 rizzclaw chat
+
+# 启动 Gateway 服务
+rizzclaw gateway
+
+# 启动 Gateway 调试模式 (显示消息日志)
+rizzclaw gateway -d
 
 # 查看可用模型
 rizzclaw models
@@ -301,6 +345,43 @@ rizzclaw config show
 | `/exit` 或 `/quit` | 退出对话 |
 | `/clear` | 清除当前会话历史 |
 | `/help` | 显示帮助信息 |
+
+### 飞书集成配置
+
+1. 在飞书开放平台创建企业自建应用，获取 App ID 和 App Secret
+
+2. 在 `config.json` 中添加飞书配置：
+
+```json
+{
+  "channels": {
+    "feishu": {
+      "enabled": true,
+      "app_id": "cli_xxxxxxxx",
+      "app_secret": "xxxxxxxx",
+      "encrypt_key": "optional",
+      "verification_token": "optional",
+      "allow_from": []
+    }
+  }
+}
+```
+
+3. 启动 Gateway 服务：
+
+```bash
+rizzclaw gateway
+```
+
+4. 在飞书中搜索你的应用，开始对话
+
+#### 飞书对话示例
+
+<p align="center">
+  <img src="docs/pics/feishu1.png" alt="飞书对话示例1" width="300"/>
+  <img src="docs/pics/feishu2.png" alt="飞书对话示例2" width="300"/>
+  <img src="docs/pics/feishu3.png" alt="飞书对话示例3" width="300"/>
+</p>
 
 ## 项目结构
 

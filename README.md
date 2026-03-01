@@ -23,6 +23,44 @@ RizzClaw is an AI-powered intelligent coding assistant built on [MiniMax](https:
 
 ## ✨ Core Features
 
+### 🚀 Gateway Multi-Channel Support
+
+RizzClaw 0.2.0 introduces **Gateway Mode**, supporting multiple channels for AI interaction:
+
+- **Feishu (Lark)** - Enterprise instant messaging integration
+- **Console** - Command-line interactive mode
+- **Extensible Architecture** - Easy to add Telegram, Discord, and more channels
+
+#### Gateway Architecture
+
+```
+┌─────────────────────────────────────────┐
+│              Gateway                    │
+│  ┌─────────┐    ┌──────────────┐       │
+│  │ Agent   │◄──►│  MessageBus  │       │
+│  │  Loop   │    │              │       │
+│  └─────────┘    └──────┬───────┘       │
+│         ▲              │                │
+│         │         ┌────┴────┐          │
+│         │         │ Channels│          │
+│         │         ├────┬────┤          │
+│         │         │Feishu│Console│      │
+│         │         └────┴────┘          │
+│         ▲                              │
+│    LLM API                             │
+└─────────────────────────────────────────┘
+```
+
+#### Multi-User Session Isolation
+
+Gateway mode supports multiple users simultaneously, with each user/group having independent conversation context:
+
+```
+User A DM → feishu_chat_aaa_user_aaa.jsonl
+User B DM → feishu_chat_bbb_user_bbb.jsonl
+Group Chat → feishu_group_ccc_user_aaa.jsonl
+```
+
 ### 🧠 Smart Session Management (Auto-Summary)
 
 RizzClaw features an intelligent session compression mechanism that automatically manages context windows during long conversations:
@@ -286,8 +324,14 @@ cp config.example.json ~/.rizzclaw/config.json
 # Show help
 rizzclaw --help
 
-# Start interactive chat
+# Start interactive chat (Console mode)
 rizzclaw chat
+
+# Start Gateway service
+rizzclaw gateway
+
+# Start Gateway in debug mode (show message logs)
+rizzclaw gateway -d
 
 # List available models
 rizzclaw models
@@ -305,6 +349,43 @@ In chat mode, the following commands are available:
 | `/exit` or `/quit` | Exit the conversation |
 | `/clear` | Clear current session history |
 | `/help` | Show help information |
+
+### Feishu Integration
+
+1. Create an enterprise app on Feishu Open Platform and obtain App ID and App Secret
+
+2. Add Feishu configuration to `config.json`:
+
+```json
+{
+  "channels": {
+    "feishu": {
+      "enabled": true,
+      "app_id": "cli_xxxxxxxx",
+      "app_secret": "xxxxxxxx",
+      "encrypt_key": "optional",
+      "verification_token": "optional",
+      "allow_from": []
+    }
+  }
+}
+```
+
+3. Start the Gateway service:
+
+```bash
+rizzclaw gateway
+```
+
+4. Search for your app in Feishu and start chatting
+
+#### Feishu Conversation Examples
+
+<p align="center">
+  <img src="docs/pics/feishu1.png" alt="Feishu Example 1" width="300"/>
+  <img src="docs/pics/feishu2.png" alt="Feishu Example 2" width="300"/>
+  <img src="docs/pics/feishu3.png" alt="Feishu Example 3" width="300"/>
+</p>
 
 ## Project Structure
 
