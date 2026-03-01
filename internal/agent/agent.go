@@ -120,6 +120,98 @@ func (a *Agent) RunSilent(ctx context.Context, input string) (string, error) {
 	return a.runInternal(ctx, input, false)
 }
 
+// RunWithSession runs the agent with a specific session (for multi-user gateway mode)
+func (a *Agent) RunWithSession(ctx context.Context, session *Session, input string) (string, error) {
+	a.mu.Lock()
+	// Temporarily replace the session
+	originalSession := a.Session
+	a.Session = session
+	a.mu.Unlock()
+
+	// Run the chat
+	response, err := a.runInternalWithSession(ctx, session, input, false)
+
+	// Restore original session
+	a.mu.Lock()
+	a.Session = originalSession
+	a.mu.Unlock()
+
+	return response, err
+}
+
+func (a *Agent) runInternalWithSession(ctx context.Context, session *Session, input string, printOutput bool) (string, error) {
+	// Add user message to session
+	session.Messages = append(session.Messages, Message{
+		Role:      string(llm.RoleUser),
+		Content:   input,
+		Timestamp: timeNow(),
+	})
+
+	messages := convertSessionMessages(session)
+
+	var response string
+	handler := func(event *llm.StreamEvent) error {
+		if event.Delta != nil && event.Delta.Text != "" {
+			response += event.Delta.Text
+			if printOutput {
+				fmt.Print(event.Delta.Text)
+			}
+		}
+		return nil
+	}
+
+	if a.UseTools {
+		llmTools := tools.ToLLMTools()
+		resp, err := a.Client.ChatWithTools(ctx, messages, a.SystemPrompt, llmTools, 10, handler)
+		if err != nil {
+			return "", fmt.Errorf("chat with tools failed: %w", err)
+		}
+		response = extractTextFromResponse(resp)
+	} else {
+		err := a.Client.ChatStream(ctx, messages, a.SystemPrompt, handler)
+		if err != nil {
+			return "", fmt.Errorf("chat stream failed: %w", err)
+		}
+	}
+
+	if printOutput {
+		fmt.Println()
+	}
+
+	// Add assistant message to session
+	session.Messages = append(session.Messages, Message{
+		Role:      string(llm.RoleAssistant),
+		Content:   response,
+		Timestamp: timeNow(),
+	})
+	session.UpdatedAt = timeNow()
+
+	if printOutput && ShouldCompactSession(session) {
+		compacted := CompactSession(session)
+		if compacted {
+			fmt.Println("\n[Session compressed]")
+		}
+	}
+
+	go func() {
+		SaveSessionToContext(session)
+	}()
+
+	return response, nil
+}
+
+func convertSessionMessages(session *Session) []llm.Message {
+	messages := make([]llm.Message, 0, len(session.Messages))
+	for _, msg := range session.Messages {
+		role := llm.MessageRole(msg.Role)
+		messages = append(messages, llm.Message{
+			Role:    role,
+			Content: []llm.ContentBlock{{Type: "text", Text: msg.Content}},
+		})
+	}
+	return messages
+}
+
 func (a *Agent) runInternal(ctx context.Context, input string, printOutput bool) (string, error) {
 	a.mu.Lock()
 	a.Session.Messages = append(a.Session.Messages, Message{

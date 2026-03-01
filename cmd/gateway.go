@@ -75,8 +75,11 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	fmt.Println("Press Ctrl+C to stop")
 	fmt.Println()
 
+	// Create session manager for multi-user support
+	sessionManager := agent.NewSessionManager()
+
 	// Start agent message processing loop
-	go runAgentLoop(ctx, ag, msgBus, gatewayDebug)
+	go runAgentLoop(ctx, ag, msgBus, sessionManager, gatewayDebug)
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
@@ -96,7 +99,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 }
 
 // runAgentLoop processes messages from the bus
-func runAgentLoop(ctx context.Context, ag *agent.Agent, msgBus *bus.MessageBus, debug bool) {
+func runAgentLoop(ctx context.Context, ag *agent.Agent, msgBus *bus.MessageBus, sessionManager *agent.SessionManager, debug bool) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -109,13 +112,19 @@ func runAgentLoop(ctx context.Context, ag *agent.Agent, msgBus *bus.MessageBus, 
 			return
 		}
 
+		// Build session key for this user/chat
+		sessionKey := agent.BuildSessionKey(msg.Channel, msg.ChatID, msg.UserID)
+
+		// Get or load session for this user
+		session := sessionManager.GetOrLoadSession(sessionKey)
+
 		// Log incoming message if debug mode
 		if debug {
-			fmt.Printf("[%s] 👤 %s: %s\n", msg.Channel, msg.UserID, truncateString(msg.Content, 100))
+			fmt.Printf("[%s] 😎 %s (session: %s): %s\n", msg.Channel, msg.UserID, sessionKey, truncateString(msg.Content, 100))
 		}
 
-		// Process message with agent (silent mode for gateway)
-		response, err := ag.RunSilent(ctx, msg.Content)
+		// Process message with agent using the specific session
+		response, err := ag.RunWithSession(ctx, session, msg.Content)
 		if err != nil {
 			// Send error response back
 			msgBus.PublishOutbound(bus.OutboundMessage{
@@ -131,7 +140,7 @@ func runAgentLoop(ctx context.Context, ag *agent.Agent, msgBus *bus.MessageBus, 
 
 		// Log outgoing response if debug mode
 		if debug {
-			fmt.Printf("[%s] 🤖 Response: %s\n", msg.Channel, truncateString(response, 100))
+			fmt.Printf("[%s] 🦞 Response (session: %s): %s\n", msg.Channel, sessionKey, truncateString(response, 500))
 		}
 
 		// Send response back to the channel
