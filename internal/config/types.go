@@ -48,8 +48,22 @@ type ToolsConfig struct {
 	Proxy string `json:"proxy,omitempty" mapstructure:"proxy"`
 }
 
+type FeishuConfig struct {
+	Enabled           bool     `json:"enabled" mapstructure:"enabled"`
+	AppID             string   `json:"app_id" mapstructure:"app_id"`
+	AppSecret         string   `json:"app_secret" mapstructure:"app_secret"`
+	EncryptKey        string   `json:"encrypt_key,omitempty" mapstructure:"encrypt_key"`
+	VerificationToken string   `json:"verification_token,omitempty" mapstructure:"verification_token"`
+	AllowFrom         []string `json:"allow_from,omitempty" mapstructure:"allow_from"`
+}
+
+type ChannelsConfig struct {
+	Feishu FeishuConfig `json:"feishu,omitempty" mapstructure:"feishu"`
+}
+
 type Config struct {
-	Models ModelsConfig `json:"models" mapstructure:"models"`
-	Agents AgentsConfig `json:"agents" mapstructure:"agents"`
-	Tools  ToolsConfig  `json:"tools,omitempty" mapstructure:"tools"`
+	Models   ModelsConfig   `json:"models" mapstructure:"models"`
+	Agents   AgentsConfig   `json:"agents" mapstructure:"agents"`
+	Tools    ToolsConfig    `json:"tools,omitempty" mapstructure:"tools"`
+	Channels ChannelsConfig `json:"channels,omitempty" mapstructure:"channels"`
 }

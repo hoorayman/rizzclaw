@@ -54,14 +54,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 		ag.SetDebug(true)
 	}
 
-	// Print console banner first (before starting channels)
-	if consoleCh, ok := channelManager.GetChannel("console"); ok {
-		if console, ok := consoleCh.(*channels.ConsoleChannel); ok {
-			console.PrintBanner()
-		}
-	}
-
-	// Start channels (this will start the input loop)
+	// Start channels
 	if err := channelManager.StartAll(ctx); err != nil {
 		return fmt.Errorf("failed to start channels: %w", err)
 	}
@@ -76,13 +69,6 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	fmt.Println("🦞 RizzClaw Gateway started")
 	fmt.Println("Press Ctrl+C to stop")
 	fmt.Println()
-
-	// Signal console channel to start accepting input (after all banner messages)
-	if consoleCh, ok := channelManager.GetChannel("console"); ok {
-		if console, ok := consoleCh.(*channels.ConsoleChannel); ok {
-			console.SignalStart()
-		}
-	}
 
 	// Start agent message processing loop
 	go runAgentLoop(ctx, ag, msgBus)

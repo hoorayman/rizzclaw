@@ -38,7 +38,16 @@ func (m *Manager) initChannels() error {
 	console := NewConsoleChannel(m.bus)
 	m.channels["console"] = console
 
-	// TODO: Initialize other channels (Feishu, Telegram, etc.) based on config
+	// Initialize Feishu channel if enabled
+	if m.config.Channels.Feishu.Enabled {
+		feishu, err := NewFeishuChannel(m.config.Channels.Feishu, m.bus)
+		if err != nil {
+			return fmt.Errorf("failed to initialize feishu channel: %w", err)
+		}
+		m.channels["feishu"] = feishu
+	}
+
+	// TODO: Add Telegram, Discord, etc. based on config
 
 	return nil
 }
