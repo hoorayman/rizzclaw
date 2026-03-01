@@ -471,16 +471,6 @@ func min(a, b int) int {
 	return b
 }
 
-func extractTitle(text string) string {
-	if idx := strings.Index(text, " - "); idx > 0 {
-		return text[:idx]
-	}
-	if len(text) > 50 {
-		return text[:50] + "..."
-	}
-	return text
-}
-
 func formatSearchResults(query string, results []SearchResult) (string, error) {
 	var output strings.Builder
 	output.WriteString(fmt.Sprintf("Found %d search results for: %s\n\n", len(results), query))

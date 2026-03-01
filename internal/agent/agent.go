@@ -112,6 +112,15 @@ func NewAgent(id string, opts ...AgentOption) (*Agent, error) {
 }
 
 func (a *Agent) Run(ctx context.Context, input string) (string, error) {
+	return a.runInternal(ctx, input, true)
+}
+
+// RunSilent runs the agent without printing to stdout (for gateway mode)
+func (a *Agent) RunSilent(ctx context.Context, input string) (string, error) {
+	return a.runInternal(ctx, input, false)
+}
+
+func (a *Agent) runInternal(ctx context.Context, input string, printOutput bool) (string, error) {
 	a.mu.Lock()
 	a.Session.Messages = append(a.Session.Messages, Message{
 		Role:      string(llm.RoleUser),
@@ -126,7 +135,9 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 	handler := func(event *llm.StreamEvent) error {
 		if event.Delta != nil && event.Delta.Text != "" {
 			response += event.Delta.Text
-			fmt.Print(event.Delta.Text)
+			if printOutput {
+				fmt.Print(event.Delta.Text)
+			}
 		}
 		return nil
 	}
@@ -145,7 +156,9 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 		}
 	}
 
-	fmt.Println()
+	if printOutput {
+		fmt.Println()
+	}
 
 	a.mu.Lock()
 	a.Session.Messages = append(a.Session.Messages, Message{
@@ -155,7 +168,7 @@ func (a *Agent) Run(ctx context.Context, input string) (string, error) {
 	})
 	a.Session.UpdatedAt = timeNow()
 
-	if ShouldCompactSession(a.Session) {
+	if printOutput && ShouldCompactSession(a.Session) {
 		compacted := CompactSession(a.Session)
 		if compacted {
 			fmt.Println("\n[Session compressed]")
