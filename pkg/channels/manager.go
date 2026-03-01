@@ -32,12 +32,8 @@ func NewManager(cfg *config.Config, messageBus *bus.MessageBus) (*Manager, error
 	return m, nil
 }
 
-// initChannels initializes all enabled channels
+// initChannels initializes all enabled channels based on config
 func (m *Manager) initChannels() error {
-	// Always initialize console channel for CLI mode
-	console := NewConsoleChannel(m.bus)
-	m.channels["console"] = console
-
 	// Initialize Feishu channel if enabled
 	if m.config.Channels.Feishu.Enabled {
 		feishu, err := NewFeishuChannel(m.config.Channels.Feishu, m.bus)
