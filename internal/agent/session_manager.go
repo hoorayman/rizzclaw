@@ -128,11 +128,12 @@ func (sm *SessionManager) ListSessions() []string {
 
 // BuildSessionKey creates a session key for a channel/chat/user combination
 func BuildSessionKey(channel, chatID, userID string) string {
-	// Format: <channel>:<chat_id>:<user_id>
+	// Format: <channel>_<chat_id>_<user_id>
+	// Using _ instead of : for Windows filename compatibility
 	// For group chats, userID is included to track individual users in the group
 	// For direct messages, chatID and userID are often the same
 	if userID != "" && userID != chatID {
-		return fmt.Sprintf("%s:%s:%s", channel, chatID, userID)
+		return fmt.Sprintf("%s_%s_%s", channel, chatID, userID)
 	}
-	return fmt.Sprintf("%s:%s", channel, chatID)
+	return fmt.Sprintf("%s_%s", channel, chatID)
 }
