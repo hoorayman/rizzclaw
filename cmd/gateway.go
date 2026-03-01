@@ -13,6 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	gatewayDebug bool
+)
+
 var gatewayCmd = &cobra.Command{
 	Use:   "gateway",
 	Short: "Start RizzClaw gateway server",
@@ -22,6 +26,7 @@ var gatewayCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(gatewayCmd)
+	gatewayCmd.Flags().BoolVarP(&gatewayDebug, "debug", "d", false, "Enable debug mode to show message logs")
 }
 
 func runGateway(cmd *cobra.Command, args []string) error {
@@ -71,7 +76,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Start agent message processing loop
-	go runAgentLoop(ctx, ag, msgBus)
+	go runAgentLoop(ctx, ag, msgBus, gatewayDebug)
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
@@ -91,7 +96,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 }
 
 // runAgentLoop processes messages from the bus
-func runAgentLoop(ctx context.Context, ag *agent.Agent, msgBus *bus.MessageBus) {
+func runAgentLoop(ctx context.Context, ag *agent.Agent, msgBus *bus.MessageBus, debug bool) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -104,6 +109,11 @@ func runAgentLoop(ctx context.Context, ag *agent.Agent, msgBus *bus.MessageBus) 
 			return
 		}
 
+		// Log incoming message if debug mode
+		if debug {
+			fmt.Printf("[%s] 👤 %s: %s\n", msg.Channel, msg.UserID, truncateString(msg.Content, 100))
+		}
+
 		// Process message with agent (silent mode for gateway)
 		response, err := ag.RunSilent(ctx, msg.Content)
 		if err != nil {
@@ -113,7 +123,15 @@ func runAgentLoop(ctx context.Context, ag *agent.Agent, msgBus *bus.MessageBus) 
 				ChatID:  msg.ChatID,
 				Content: fmt.Sprintf("Error: %v", err),
 			})
+			if debug {
+				fmt.Printf("[%s] ❌ Error: %v\n", msg.Channel, err)
+			}
 			continue
+		}
+
+		// Log outgoing response if debug mode
+		if debug {
+			fmt.Printf("[%s] 🤖 Response: %s\n", msg.Channel, truncateString(response, 100))
 		}
 
 		// Send response back to the channel
@@ -123,4 +141,12 @@ func runAgentLoop(ctx context.Context, ag *agent.Agent, msgBus *bus.MessageBus) 
 			Content: response,
 		})
 	}
+}
+
+// truncateString truncates a string to max length
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
