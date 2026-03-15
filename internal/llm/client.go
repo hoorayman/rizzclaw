@@ -112,7 +112,49 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body any) (
 		req.Header.Set(k, v)
 	}
 
-	return c.HTTPClient.Do(req)
+	// Add retry mechanism for rate limiting
+	maxRetries := 7
+	baseDelay := 30 * time.Second // Increased base delay for Minimax rate limits
+
+	for i := 0; i < maxRetries; i++ {
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			// Network error, retry after delay
+			if i < maxRetries-1 {
+				delay := baseDelay * time.Duration(1<<uint(i)) // Exponential backoff
+				if c.Debug {
+					fmt.Printf("Request failed, retrying in %v...\n", delay)
+				}
+				time.Sleep(delay)
+				continue
+			}
+			return nil, fmt.Errorf("request failed: %w", err)
+		}
+
+		// Check for rate limiting (429 Too Many Requests)
+		if resp.StatusCode == http.StatusTooManyRequests {
+			if i < maxRetries-1 {
+				delay := baseDelay * time.Duration(1<<uint(i)) // Exponential backoff
+				if c.Debug {
+					fmt.Printf("Rate limited, retrying in %v...\n", delay)
+				}
+				time.Sleep(delay)
+				resp.Body.Close()
+				continue
+			}
+		}
+
+		// For other non-200 status codes, return error immediately
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+		}
+
+		return resp, nil
+	}
+
+	return nil, fmt.Errorf("max retries exceeded")
 }
 
 type ChatResponseHandler func(response *ChatResponse) error
