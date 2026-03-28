@@ -169,7 +169,92 @@ type SearchOptions struct {
 
 - 🤖 **AI-Powered** - Built on advanced MiniMax M2.1/M2.5 large language models
 - 📁 **Rich Tools** - Built-in file operations, code execution, web search, and more
-- ⚡ **Skill System** - Support for loading custom skill extensions
+- ⚡ **Skills System** - Compatible with [skills.sh](https://skills.sh/) ecosystem, load custom skill extensions
+
+### 🎯 Skills System
+
+RizzClaw supports the [skills.sh](https://skills.sh/) ecosystem, allowing you to extend AI capabilities with modular skill packages.
+
+#### Installing Skills
+
+```bash
+# Install a skill globally
+npx skills add vercel-labs/agent-skills
+
+# Install a skill for current project
+npx skills add vercel-labs/agent-skills --local
+```
+
+#### Skills Loading Paths
+
+Skills are automatically loaded from the following directories (in priority order):
+
+| Priority | Path | Description |
+|----------|------|-------------|
+| 1 | `./.rizzclaw/skills/` | Project custom skills |
+| 2 | `./skills/` | Project skills |
+| 3 | `./.agents/skills/` | Project-level skills (npx skills add --local) |
+| 4 | `~/.rizzclaw/skills/` | User custom skills |
+| 5 | `~/.agents/skills/` | Global skills (npx skills add) |
+
+#### Skills CLI Commands
+
+```bash
+# List all skills
+rizzclaw skills list
+
+# List only eligible skills (enabled + dependencies met)
+rizzclaw skills list --eligible
+
+# Show skill details
+rizzclaw skills info <skill-id>
+
+# Enable/disable a skill
+rizzclaw skills enable <skill-id>
+rizzclaw skills disable <skill-id>
+
+# Check skill dependencies
+rizzclaw skills check [skill-id]
+
+# Reload skills from disk
+rizzclaw skills reload
+```
+
+#### Skill File Format (SKILL.md)
+
+```yaml
+---
+name: my-skill
+description: "Description of what this skill does"
+version: "1.0.0"
+author: YourName
+emoji: "🚀"
+when: "When to use this skill"
+tags:
+  - tag1
+  - tag2
+requires:
+  bins:
+    - git
+  env:
+    - GITHUB_TOKEN
+---
+
+# Skill Instructions
+
+Detailed instructions for the AI agent...
+```
+
+#### Dependency Checking
+
+Skills can declare dependencies that are checked at runtime:
+
+- `requires.bins` - Required binaries (all must be available)
+- `requires.anyBins` - Alternative binaries (at least one must be available)
+- `requires.env` - Required environment variables
+- `os` - Supported operating systems
+
+Skills with unmet dependencies are automatically excluded from the prompt.
 
 ### 🔍 Web Search
 
@@ -338,6 +423,15 @@ rizzclaw models
 
 # Show current configuration
 rizzclaw config show
+
+# Skills management
+rizzclaw skills list              # List all skills
+rizzclaw skills list --eligible   # List eligible skills only
+rizzclaw skills info <skill-id>   # Show skill details
+rizzclaw skills enable <skill-id> # Enable a skill
+rizzclaw skills disable <skill-id># Disable a skill
+rizzclaw skills check             # Check skill dependencies
+rizzclaw skills reload            # Reload skills from disk
 ```
 
 ### Interactive Commands
@@ -392,13 +486,18 @@ rizzclaw gateway
 ```
 rizzclaw/
 ├── cmd/                # CLI command entry
-│   └── root.go         # Root command and chat command
+│   ├── root.go         # Root command and chat command
+│   ├── gateway.go      # Gateway command
+│   └── skills.go       # Skills management commands
 ├── internal/           # Internal packages
 │   ├── agent/          # Agent core logic
 │   │   ├── agent.go    # Agent implementation
 │   │   └── session.go  # Session management
 │   ├── llm/            # LLM client abstraction
 │   ├── tools/          # Tool collection
+│   ├── skills/         # Skills system
+│   │   ├── loader.go   # Skill loader (SKILL.md parser)
+│   │   └── registry.go # Skill registry & dependency checking
 │   ├── context/        # Context management
 │   │   ├── manager.go  # Context manager
 │   │   ├── session.go  # Session storage & compression
@@ -431,10 +530,18 @@ All data is stored in the `.rizzclaw` folder in the user's home directory:
 ├── memory.db          # Memory database (SQLite)
 ├── sessions/          # Session storage
 │   └── session-*.jsonl
-└── context/           # Context files
-    ├── MEMORY.md      # Long-term memory
-    ├── USER.md        # User preferences
-    └── ...
+├── workspace/         # Context files
+│   ├── MEMORY.md      # Long-term memory
+│   ├── USER.md        # User preferences
+│   └── ...
+└── skills/            # Skills registry
+    └── skills.json    # Skills state (enabled/disabled)
+
+~/.agents/skills/      # Global skills (npx skills add)
+├── skill-a/
+│   └── SKILL.md
+└── skill-b/
+    └── SKILL.md
 ```
 
 ## License

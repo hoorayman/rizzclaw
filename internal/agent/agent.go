@@ -10,6 +10,7 @@ import (
 	ctxmgr "github.com/hoorayman/rizzclaw/internal/context"
 	"github.com/hoorayman/rizzclaw/internal/llm"
 	"github.com/hoorayman/rizzclaw/internal/minimax"
+	"github.com/hoorayman/rizzclaw/internal/skills"
 	"github.com/hoorayman/rizzclaw/internal/tools"
 )
 
@@ -108,6 +109,13 @@ func NewAgent(id string, opts ...AgentOption) (*Agent, error) {
 		agent.SystemPrompt = mgr.BuildSystemPrompt(defaultBasePrompt)
 	}
 
+	if err := skills.LoadAllSkillsFromDisk(); err == nil {
+		skillsPrompt := skills.GetEligibleSkillsPrompt()
+		if skillsPrompt != "" {
+			agent.SystemPrompt += skillsPrompt
+		}
+	}
+
 	return agent, nil
 }
 
@@ -162,6 +170,8 @@ func (a *Agent) runInternalWithSession(ctx context.Context, session *Session, in
 
 	if a.UseTools {
 		llmTools := tools.ToLLMTools()
+		skillTools := skills.GetEligibleSkillsTools()
+		llmTools = append(llmTools, skillTools...)
 		resp, err := a.Client.ChatWithTools(ctx, messages, a.SystemPrompt, llmTools, 10, handler)
 		if err != nil {
 			return "", fmt.Errorf("chat with tools failed: %w", err)
@@ -236,6 +246,8 @@ func (a *Agent) runInternal(ctx context.Context, input string, printOutput bool)
 
 	if a.UseTools {
 		llmTools := tools.ToLLMTools()
+		skillTools := skills.GetEligibleSkillsTools()
+		llmTools = append(llmTools, skillTools...)
 		resp, err := a.Client.ChatWithTools(ctx, messages, a.SystemPrompt, llmTools, 10, handler)
 		if err != nil {
 			return "", fmt.Errorf("chat with tools failed: %w", err)
@@ -297,6 +309,8 @@ func (a *Agent) RunWithTools(ctx context.Context, input string, maxIterations in
 	}
 
 	llmTools := tools.ToLLMTools()
+	skillTools := skills.GetEligibleSkillsTools()
+	llmTools = append(llmTools, skillTools...)
 	resp, err := a.Client.ChatWithTools(ctx, messages, a.SystemPrompt, llmTools, maxIterations, handler)
 	if err != nil {
 		return "", fmt.Errorf("chat with tools failed: %w", err)

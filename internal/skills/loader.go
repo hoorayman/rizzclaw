@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type SkillMetadata struct {
@@ -20,6 +22,25 @@ type SkillMetadata struct {
 	Priority    int      `yaml:"priority" json:"priority"`
 	Enabled     bool     `yaml:"enabled" json:"enabled"`
 	Tags        []string `yaml:"tags" json:"tags"`
+	When        string   `yaml:"when" json:"when"`
+	Always      bool     `yaml:"always" json:"always"`
+	Emoji       string   `yaml:"emoji" json:"emoji"`
+	Homepage    string   `yaml:"homepage" json:"homepage"`
+	OS          []string `yaml:"os" json:"os"`
+	Requires    struct {
+		Bins    []string `yaml:"bins" json:"bins"`
+		AnyBins []string `yaml:"anyBins" json:"anyBins"`
+		Env     []string `yaml:"env" json:"env"`
+		Config  []string `yaml:"config" json:"config"`
+	} `yaml:"requires" json:"requires"`
+	Install []SkillInstallSpec `yaml:"install" json:"install"`
+}
+
+type SkillInstallSpec struct {
+	ID      string `yaml:"id" json:"id"`
+	Kind    string `yaml:"kind" json:"kind"`
+	Formula string `yaml:"formula" json:"formula"`
+	DocURL  string `yaml:"docUrl" json:"docUrl"`
 }
 
 type SkillFile struct {
@@ -54,10 +75,12 @@ func getDefaultSearchPaths() []string {
 	if cwd, err := os.Getwd(); err == nil {
 		paths = append(paths, filepath.Join(cwd, ".rizzclaw", "skills"))
 		paths = append(paths, filepath.Join(cwd, "skills"))
+		paths = append(paths, filepath.Join(cwd, ".agents", "skills"))
 	}
 
 	if home, err := os.UserHomeDir(); err == nil {
 		paths = append(paths, filepath.Join(home, ".rizzclaw", "skills"))
+		paths = append(paths, filepath.Join(home, ".agents", "skills"))
 	}
 
 	return paths
@@ -214,59 +237,117 @@ func parseFrontmatter(content []byte) (*SkillMetadata, []byte, error) {
 	frontmatter := bytes.TrimSpace(parts[1])
 	body := bytes.TrimSpace(parts[2])
 
-	lines := bytes.Split(frontmatter, []byte("\n"))
-	for _, line := range lines {
-		line = bytes.TrimSpace(line)
-		if len(line) == 0 {
-			continue
+	var yamlData map[string]interface{}
+	if err := yaml.Unmarshal(frontmatter, &yamlData); err != nil {
+		return metadata, body, nil
+	}
+
+	if id, ok := yamlData["id"].(string); ok {
+		metadata.ID = id
+	}
+	if name, ok := yamlData["name"].(string); ok {
+		metadata.Name = name
+	}
+	if version, ok := yamlData["version"].(string); ok {
+		metadata.Version = version
+	}
+	if author, ok := yamlData["author"].(string); ok {
+		metadata.Author = author
+	}
+	if description, ok := yamlData["description"].(string); ok {
+		metadata.Description = description
+	}
+	if description, ok := yamlData["when"].(string); ok {
+		metadata.When = description
+	}
+	if always, ok := yamlData["always"].(bool); ok {
+		metadata.Always = always
+	}
+	if emoji, ok := yamlData["emoji"].(string); ok {
+		metadata.Emoji = emoji
+	}
+	if homepage, ok := yamlData["homepage"].(string); ok {
+		metadata.Homepage = homepage
+	}
+	if priority, ok := yamlData["priority"].(int); ok {
+		metadata.Priority = priority
+	}
+	if enabled, ok := yamlData["enabled"].(bool); ok {
+		metadata.Enabled = enabled
+	}
+
+	if osList, ok := yamlData["os"].([]interface{}); ok {
+		for _, o := range osList {
+			if s, ok := o.(string); ok {
+				metadata.OS = append(metadata.OS, s)
+			}
 		}
+	}
 
-		colonIdx := bytes.Index(line, []byte(":"))
-		if colonIdx == -1 {
-			continue
+	if tools, ok := yamlData["tools"].([]interface{}); ok {
+		for _, t := range tools {
+			if s, ok := t.(string); ok {
+				metadata.Tools = append(metadata.Tools, s)
+			}
 		}
+	}
 
-		key := string(bytes.TrimSpace(line[:colonIdx]))
-		value := bytes.TrimSpace(line[colonIdx+1:])
+	if tags, ok := yamlData["tags"].([]interface{}); ok {
+		for _, t := range tags {
+			if s, ok := t.(string); ok {
+				metadata.Tags = append(metadata.Tags, s)
+			}
+		}
+	}
 
-		value = bytes.Trim(value, "\"'")
-
-		switch key {
-		case "id":
-			metadata.ID = string(value)
-		case "name":
-			metadata.Name = string(value)
-		case "version":
-			metadata.Version = string(value)
-		case "author":
-			metadata.Author = string(value)
-		case "description":
-			metadata.Description = string(value)
-		case "priority":
-			var p int
-			fmt.Sscanf(string(value), "%d", &p)
-			metadata.Priority = p
-		case "enabled":
-			metadata.Enabled = strings.ToLower(string(value)) == "true"
-		case "tools":
-			if len(value) > 0 && value[0] == '[' {
-				toolsStr := strings.Trim(string(value), "[]")
-				for _, t := range strings.Split(toolsStr, ",") {
-					t = strings.TrimSpace(t)
-					if t != "" {
-						metadata.Tools = append(metadata.Tools, strings.Trim(t, "\"'"))
-					}
+	if requires, ok := yamlData["requires"].(map[string]interface{}); ok {
+		if bins, ok := requires["bins"].([]interface{}); ok {
+			for _, b := range bins {
+				if s, ok := b.(string); ok {
+					metadata.Requires.Bins = append(metadata.Requires.Bins, s)
 				}
 			}
-		case "tags":
-			if len(value) > 0 && value[0] == '[' {
-				tagsStr := strings.Trim(string(value), "[]")
-				for _, t := range strings.Split(tagsStr, ",") {
-					t = strings.TrimSpace(t)
-					if t != "" {
-						metadata.Tags = append(metadata.Tags, strings.Trim(t, "\"'"))
-					}
+		}
+		if anyBins, ok := requires["anyBins"].([]interface{}); ok {
+			for _, b := range anyBins {
+				if s, ok := b.(string); ok {
+					metadata.Requires.AnyBins = append(metadata.Requires.AnyBins, s)
 				}
+			}
+		}
+		if env, ok := requires["env"].([]interface{}); ok {
+			for _, e := range env {
+				if s, ok := e.(string); ok {
+					metadata.Requires.Env = append(metadata.Requires.Env, s)
+				}
+			}
+		}
+		if config, ok := requires["config"].([]interface{}); ok {
+			for _, c := range config {
+				if s, ok := c.(string); ok {
+					metadata.Requires.Config = append(metadata.Requires.Config, s)
+				}
+			}
+		}
+	}
+
+	if install, ok := yamlData["install"].([]interface{}); ok {
+		for _, i := range install {
+			if instMap, ok := i.(map[string]interface{}); ok {
+				spec := SkillInstallSpec{}
+				if id, ok := instMap["id"].(string); ok {
+					spec.ID = id
+				}
+				if kind, ok := instMap["kind"].(string); ok {
+					spec.Kind = kind
+				}
+				if formula, ok := instMap["formula"].(string); ok {
+					spec.Formula = formula
+				}
+				if docURL, ok := instMap["docUrl"].(string); ok {
+					spec.DocURL = docURL
+				}
+				metadata.Install = append(metadata.Install, spec)
 			}
 		}
 	}
@@ -275,7 +356,7 @@ func parseFrontmatter(content []byte) (*SkillMetadata, []byte, error) {
 }
 
 func (l *SkillLoader) ToSkill(skillFile *SkillFile) *Skill {
-	return &Skill{
+	skill := &Skill{
 		ID:          skillFile.Metadata.ID,
 		Name:        skillFile.Metadata.Name,
 		Description: skillFile.Metadata.Description,
@@ -284,7 +365,31 @@ func (l *SkillLoader) ToSkill(skillFile *SkillFile) *Skill {
 		Prompt:      skillFile.Content,
 		Tools:       skillFile.Metadata.Tools,
 		Enabled:     skillFile.Metadata.Enabled,
+		When:        skillFile.Metadata.When,
+		Always:      skillFile.Metadata.Always,
+		Emoji:       skillFile.Metadata.Emoji,
+		Homepage:    skillFile.Metadata.Homepage,
+		OS:          skillFile.Metadata.OS,
+		Tags:        skillFile.Metadata.Tags,
+		Priority:    skillFile.Metadata.Priority,
+		SourcePath:  skillFile.Path,
 	}
+
+	skill.Requires.Bins = skillFile.Metadata.Requires.Bins
+	skill.Requires.AnyBins = skillFile.Metadata.Requires.AnyBins
+	skill.Requires.Env = skillFile.Metadata.Requires.Env
+	skill.Requires.Config = skillFile.Metadata.Requires.Config
+
+	for _, inst := range skillFile.Metadata.Install {
+		skill.Install = append(skill.Install, SkillInstall{
+			ID:      inst.ID,
+			Kind:    inst.Kind,
+			Formula: inst.Formula,
+			DocURL:  inst.DocURL,
+		})
+	}
+
+	return skill
 }
 
 func (l *SkillLoader) LoadAndRegister() error {
@@ -301,7 +406,7 @@ func (l *SkillLoader) LoadAndRegister() error {
 		}
 	}
 
-	return nil
+	return registry.Save()
 }
 
 func (l *SkillLoader) Watch(interval time.Duration, onChange func(skill *SkillFile)) {

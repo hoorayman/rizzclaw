@@ -169,7 +169,93 @@ type SearchOptions struct {
 
 - 🤖 **AI 驱动** - 基于 MiniMax M2.1/M2.5 等先进大语言模型
 - 🧰 **丰富工具** - 内置文件操作、代码执行、Web 搜索等多种工具
-- ⚡ **技能系统** - 支持加载自定义技能扩展
+- ⚡ **技能系统** - 兼容 [skills.sh](https://skills.sh/) 生态系统，加载自定义技能扩展
+
+### 🎯 技能系统 (Skills)
+
+RizzClaw 支持 [skills.sh](https://skills.sh/) 生态系统，可以通过模块化的技能包扩展 AI 能力。
+
+#### 安装技能
+
+```bash
+# 全局安装技能
+npx skills add vercel-labs/agent-skills
+
+# 为当前项目安装技能
+npx skills add vercel-labs/agent-skills --local
+```
+
+#### 技能加载路径
+
+技能会从以下目录自动加载（按优先级排序）：
+
+| 优先级 | 路径 | 说明 |
+|--------|------|------|
+| 1 | `./.rizzclaw/skills/` | 项目自定义技能 |
+| 2 | `./skills/` | 项目技能 |
+| 3 | `./.agents/skills/` | 项目级技能 (npx skills add --local) |
+| 4 | `~/.rizzclaw/skills/` | 用户自定义技能 |
+| 5 | `~/.agents/skills/` | 全局技能 (npx skills add) |
+
+#### 技能管理命令
+
+```bash
+# 列出所有技能
+rizzclaw skills list
+
+# 只列出符合条件的技能（已启用 + 依赖满足）
+rizzclaw skills list --eligible
+
+# 查看技能详情
+rizzclaw skills info <skill-id>
+
+# 启用/禁用技能
+rizzclaw skills enable <skill-id>
+rizzclaw skills disable <skill-id>
+
+# 检查技能依赖
+rizzclaw skills check [skill-id]
+
+# 重新加载技能
+rizzclaw skills reload
+```
+
+#### 技能文件格式 (SKILL.md)
+
+```yaml
+---
+name: my-skill
+description: "技能功能描述"
+version: "1.0.0"
+author: YourName
+emoji: "🚀"
+when: "何时使用此技能"
+tags:
+  - tag1
+  - tag2
+requires:
+  bins:
+    - git
+  env:
+    - GITHUB_TOKEN
+---
+
+# 技能指令
+
+给 AI 代理的详细指令...
+```
+
+#### 依赖检查
+
+技能可以声明运行时依赖，系统会自动检查：
+
+- `requires.bins` - 必需的二进制文件（全部必须可用）
+- `requires.anyBins` - 备选二进制文件（至少一个可用）
+- `requires.env` - 必需的环境变量
+- `os` - 支持的操作系统
+
+依赖不满足的技能会自动从提示词中排除。
+
 - 🔍 **Web 搜索** - 使用 DuckDuckGo HTML 搜索，读取环境变量自动配置代理：
   - `HTTP_PROXY` / `http_proxy` - HTTP 代理
   - `HTTPS_PROXY` / `https_proxy` - HTTPS 代理
@@ -334,6 +420,15 @@ rizzclaw models
 
 # 查看当前配置
 rizzclaw config show
+
+# 技能管理
+rizzclaw skills list              # 列出所有技能
+rizzclaw skills list --eligible   # 只列出符合条件的技能
+rizzclaw skills info <skill-id>   # 查看技能详情
+rizzclaw skills enable <skill-id> # 启用技能
+rizzclaw skills disable <skill-id># 禁用技能
+rizzclaw skills check             # 检查技能依赖
+rizzclaw skills reload            # 重新加载技能
 ```
 
 ### 交互命令
@@ -388,13 +483,18 @@ rizzclaw gateway
 ```
 rizzclaw/
 ├── cmd/                # CLI 命令入口
-│   └── root.go         # 根命令和 chat 命令
+│   ├── root.go         # 根命令和 chat 命令
+│   ├── gateway.go      # Gateway 命令
+│   └── skills.go       # 技能管理命令
 ├── internal/           # 内部包
 │   ├── agent/          # Agent 核心逻辑
 │   │   ├── agent.go    # Agent 实现
 │   │   └── session.go  # 会话管理
 │   ├── llm/            # LLM 客户端抽象
 │   ├── tools/          # 工具集
+│   ├── skills/         # 技能系统
+│   │   ├── loader.go   # 技能加载器 (SKILL.md 解析)
+│   │   └── registry.go # 技能注册表 & 依赖检查
 │   ├── context/        # 上下文管理
 │   │   ├── manager.go  # 上下文管理器
 │   │   ├── session.go  # 会话存储与压缩
@@ -427,10 +527,18 @@ rizzclaw/
 ├── memory.db          # 记忆数据库 (SQLite)
 ├── sessions/          # 会话存储
 │   └── session-*.jsonl
-└── context/           # 上下文文件
-    ├── MEMORY.md      # 长期记忆
-    ├── USER.md        # 用户偏好
-    └── ...
+├── workspace/         # 上下文文件
+│   ├── MEMORY.md      # 长期记忆
+│   ├── USER.md        # 用户偏好
+│   └── ...
+└── skills/            # 技能注册表
+    └── skills.json    # 技能状态 (启用/禁用)
+
+~/.agents/skills/      # 全局技能 (npx skills add)
+├── skill-a/
+│   └── SKILL.md
+└── skill-b/
+    └── SKILL.md
 ```
 
 ## 许可证
