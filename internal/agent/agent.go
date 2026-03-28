@@ -172,7 +172,7 @@ func (a *Agent) runInternalWithSession(ctx context.Context, session *Session, in
 		llmTools := tools.ToLLMTools()
 		skillTools := skills.GetEligibleSkillsTools()
 		llmTools = append(llmTools, skillTools...)
-		resp, err := a.Client.ChatWithTools(ctx, messages, a.SystemPrompt, llmTools, 10, handler)
+		resp, err := a.Client.ChatWithTools(ctx, messages, a.SystemPrompt, llmTools, 50, handler)
 		if err != nil {
 			return "", fmt.Errorf("chat with tools failed: %w", err)
 		}
@@ -248,7 +248,7 @@ func (a *Agent) runInternal(ctx context.Context, input string, printOutput bool)
 		llmTools := tools.ToLLMTools()
 		skillTools := skills.GetEligibleSkillsTools()
 		llmTools = append(llmTools, skillTools...)
-		resp, err := a.Client.ChatWithTools(ctx, messages, a.SystemPrompt, llmTools, 10, handler)
+		resp, err := a.Client.ChatWithTools(ctx, messages, a.SystemPrompt, llmTools, 50, handler)
 		if err != nil {
 			return "", fmt.Errorf("chat with tools failed: %w", err)
 		}
