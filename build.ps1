@@ -34,7 +34,6 @@ function Build-Linux {
 
 function Build-LinuxArm {
     Write-Host "Building for Linux ARM32 (Raspberry Pi 2/3/4)..." -ForegroundColor Cyan
-    Write-Host "Note: 32-bit builds may fail due to larksuite/oapi-sdk-go int overflow issue" -ForegroundColor Yellow
     New-OutputDir
     $env:GOOS = "linux"; $env:GOARCH = "arm"; $env:GOARM = "7"
     & go build -ldflags $ldflags -o "$OutputDir/$AppName-linux-arm32v7" .
@@ -49,8 +48,6 @@ function Build-LinuxArm64 {
 
 function Build-Rpi {
     Write-Host "Building for Raspberry Pi Zero/1 (ARMv6)..." -ForegroundColor Cyan
-    Write-Host "WARNING: 32-bit builds may fail due to larksuite/oapi-sdk-go int overflow issue" -ForegroundColor Yellow
-    Write-Host "Consider using ARM64 builds for Raspberry Pi 4/5 instead" -ForegroundColor Yellow
     New-OutputDir
     $env:GOOS = "linux"; $env:GOARCH = "arm"; $env:GOARM = "6"
     & go build -ldflags $ldflags -o "$OutputDir/$AppName-rpi-arm32v6" .
