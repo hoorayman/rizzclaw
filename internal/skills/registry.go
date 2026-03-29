@@ -406,7 +406,13 @@ func GetEligibleSkillsPrompt() string {
 			if skill.Emoji != "" {
 				header = skill.Emoji + " " + header
 			}
-			prompts = append(prompts, fmt.Sprintf("## Skill: %s\n%s", header, skill.Prompt))
+			
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("## Skill: %s\n", header))
+			sb.WriteString(fmt.Sprintf("Source: %s\n\n", skill.SourcePath))
+			sb.WriteString(skill.Prompt)
+			
+			prompts = append(prompts, sb.String())
 		}
 	}
 
