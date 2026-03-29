@@ -156,6 +156,12 @@ func (r *SkillRegistry) Register(skill *Skill) error {
 	return nil
 }
 
+func (r *SkillRegistry) Clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.skills = make(map[string]*Skill)
+}
+
 func (r *SkillRegistry) Save() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -399,6 +399,9 @@ func (l *SkillLoader) LoadAndRegister() error {
 	}
 
 	registry := GetSkillRegistry()
+	
+	registry.Clear()
+	
 	for _, sf := range skills {
 		skill := l.ToSkill(sf)
 		if err := registry.Register(skill); err != nil {
