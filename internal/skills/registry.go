@@ -405,27 +405,39 @@ func GetEligibleSkills() []*Skill {
 func GetEligibleSkillsPrompt() string {
 	skills := GetEligibleSkills()
 
-	var prompts []string
-	for _, skill := range skills {
-		if skill.Prompt != "" {
-			header := skill.Name
-			if skill.Emoji != "" {
-				header = skill.Emoji + " " + header
-			}
-			
-			var sb strings.Builder
-			sb.WriteString(fmt.Sprintf("## Skill: %s\n", header))
-			sb.WriteString(fmt.Sprintf("Source: %s\n\n", skill.SourcePath))
-			sb.WriteString(skill.Prompt)
-			
-			prompts = append(prompts, sb.String())
-		}
+	if len(skills) == 0 {
+		return ""
 	}
 
-	if len(prompts) > 0 {
-		return "\n\n# Enabled Skills\n" + strings.Join(prompts, "\n\n")
+	var sb strings.Builder
+	sb.WriteString("\n\n## Skills (mandatory)\n")
+	sb.WriteString("Before replying: scan <available_skills> <description> entries.\n")
+	sb.WriteString("- If exactly one skill clearly applies: read its SKILL.md at <location> with `file_read`, then follow it.\n")
+	sb.WriteString("- If multiple could apply: choose the most specific one, then read/follow it.\n")
+	sb.WriteString("- If none clearly apply: do not read any SKILL.md.\n")
+	sb.WriteString("Constraints: never read more than one skill up front; only read after selecting.\n\n")
+	sb.WriteString("<available_skills>\n")
+
+	for _, skill := range skills {
+		sb.WriteString("  <skill>\n")
+		sb.WriteString(fmt.Sprintf("    <name>%s</name>\n", escapeXML(skill.Name)))
+		sb.WriteString(fmt.Sprintf("    <description>%s</description>\n", escapeXML(skill.Description)))
+		sb.WriteString(fmt.Sprintf("    <location>%s</location>\n", escapeXML(skill.SourcePath)))
+		sb.WriteString("  </skill>\n")
 	}
-	return ""
+
+	sb.WriteString("</available_skills>\n")
+
+	return sb.String()
+}
+
+func escapeXML(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "\"", "&quot;")
+	s = strings.ReplaceAll(s, "'", "&apos;")
+	return s
 }
 
 func GetEligibleSkillsTools() []llm.Tool {

@@ -54,8 +54,15 @@ var skillsInfoCmd = &cobra.Command{
 var skillsReloadCmd = &cobra.Command{
 	Use:   "reload",
 	Short: "Reload skills from disk",
-	Long:  `Reload all skills from disk, including from ~/.agent-skills and project directories.`,
+	Long:  `Reload all skills from disk, including from ~/.agents/skills and project directories.`,
 	RunE:  runSkillsReload,
+}
+
+var skillsPromptCmd = &cobra.Command{
+	Use:   "prompt",
+	Short: "Show the skills prompt",
+	Long:  `Show the generated skills prompt that would be injected into the system prompt.`,
+	RunE:  runSkillsPrompt,
 }
 
 var (
@@ -75,6 +82,7 @@ func init() {
 	skillsCmd.AddCommand(skillsCheckCmd)
 	skillsCmd.AddCommand(skillsInfoCmd)
 	skillsCmd.AddCommand(skillsReloadCmd)
+	skillsCmd.AddCommand(skillsPromptCmd)
 
 	rootCmd.AddCommand(skillsCmd)
 }
@@ -379,5 +387,21 @@ func runSkillsReload(cmd *cobra.Command, args []string) error {
 	count := len(registry.List())
 
 	fmt.Printf("Reloaded %d skills from disk.\n", count)
+	return nil
+}
+
+func runSkillsPrompt(cmd *cobra.Command, args []string) error {
+	if err := skills.LoadAllSkillsFromDisk(); err != nil {
+		fmt.Printf("Warning: failed to load skills from disk: %v\n", err)
+	}
+
+	prompt := skills.GetEligibleSkillsPrompt()
+	if prompt == "" {
+		fmt.Println("No eligible skills found.")
+		return nil
+	}
+
+	fmt.Println(prompt)
+	fmt.Printf("\n---\nTotal length: %d characters\n", len(prompt))
 	return nil
 }
