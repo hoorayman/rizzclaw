@@ -12,18 +12,17 @@ import (
 	"github.com/hoorayman/rizzclaw/pkg/bus"
 )
 
-// ConsoleChannel implements a console-based channel for CLI interaction
 type ConsoleChannel struct {
 	*BaseChannel
-	reader      *bufio.Reader
-	writer      io.Writer
-	startChan   chan struct{}
-	startOnce   sync.Once
-	needPrompt  bool
-	mu          sync.Mutex
+	reader        *bufio.Reader
+	writer        io.Writer
+	startChan     chan struct{}
+	startOnce     sync.Once
+	needPrompt    bool
+	mu            sync.Mutex
+	clearCallback func() error
 }
 
-// NewConsoleChannel creates a new console channel
 func NewConsoleChannel(bus *bus.MessageBus) *ConsoleChannel {
 	return &ConsoleChannel{
 		BaseChannel: NewBaseChannel("console", bus, nil),
@@ -33,32 +32,32 @@ func NewConsoleChannel(bus *bus.MessageBus) *ConsoleChannel {
 	}
 }
 
-// Start starts the console channel
 func (c *ConsoleChannel) Start(ctx context.Context) error {
 	c.setRunning(true)
 	go c.run(ctx)
 	return nil
 }
 
-// PrintBanner prints the console channel banner
 func (c *ConsoleChannel) PrintBanner() {
 	fmt.Fprintln(c.writer, "🦞 RizzClaw Gateway Console Mode")
-	fmt.Fprintln(c.writer, "Type your message and press Enter. Type '/exit' to quit.")
+	fmt.Fprintln(c.writer, "Type your message and press Enter. Commands: /exit, /clear")
 }
 
-// SignalStart signals that all initialization is done and input loop can start
+func (c *ConsoleChannel) SetClearCallback(cb func() error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clearCallback = cb
+}
+
 func (c *ConsoleChannel) SignalStart() {
 	c.startOnce.Do(func() {
 		close(c.startChan)
 	})
 }
 
-// run runs the console input loop
 func (c *ConsoleChannel) run(ctx context.Context) {
-	// Wait for SignalStart before printing first prompt
 	<-c.startChan
 
-	// Print first prompt
 	c.printPrompt()
 
 	for {
@@ -90,28 +89,41 @@ func (c *ConsoleChannel) run(ctx context.Context) {
 			return
 		}
 
-		// Mark that we need a prompt after response
+		if input == "/clear" {
+			c.mu.Lock()
+			cb := c.clearCallback
+			c.mu.Unlock()
+
+			if cb != nil {
+				if err := cb(); err != nil {
+					fmt.Fprintf(c.writer, "❌ Failed to clear session: %v\n", err)
+				} else {
+					fmt.Fprintln(c.writer, "✅ Session cleared successfully!")
+				}
+			} else {
+				fmt.Fprintln(c.writer, "⚠️ Clear callback not set")
+			}
+			c.printPrompt()
+			continue
+		}
+
 		c.mu.Lock()
 		c.needPrompt = true
 		c.mu.Unlock()
 
-		// Publish message to bus
 		c.HandleMessage("console_user", "console_chat", input, nil)
 	}
 }
 
-// printPrompt prints the user prompt
 func (c *ConsoleChannel) printPrompt() {
 	fmt.Fprint(c.writer, "😎: ")
 }
 
-// Stop stops the console channel
 func (c *ConsoleChannel) Stop(ctx context.Context) error {
 	c.setRunning(false)
 	return nil
 }
 
-// Send sends a message to the console
 func (c *ConsoleChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	c.mu.Lock()
 	needPrompt := c.needPrompt

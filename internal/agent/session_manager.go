@@ -126,6 +126,14 @@ func (sm *SessionManager) ListSessions() []string {
 	return keys
 }
 
+// ClearSession clears a session from memory
+func (sm *SessionManager) ClearSession(sessionKey string) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	delete(sm.sessions, sessionKey)
+}
+
 // BuildSessionKey creates a session key for a channel/chat/user combination
 func BuildSessionKey(channel, chatID, userID string) string {
 	// Format: <channel>_<chat_id>_<user_id>

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hoorayman/rizzclaw/internal/agent/multiagent"
 	ctxmgr "github.com/hoorayman/rizzclaw/internal/context"
 	"github.com/hoorayman/rizzclaw/internal/llm"
 	"github.com/hoorayman/rizzclaw/internal/minimax"
@@ -372,6 +373,24 @@ func (a *Agent) SetDebug(debug bool) {
 	}
 }
 
+func (a *Agent) SetModel(model string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.Model = model
+}
+
+func (a *Agent) SetSystemPrompt(prompt string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.SystemPrompt = prompt
+}
+
+func (a *Agent) SetName(name string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.Name = name
+}
+
 func extractTextFromResponse(resp *llm.ChatResponse) string {
 	var texts []string
 	for _, block := range resp.Content {
@@ -384,4 +403,23 @@ func extractTextFromResponse(resp *llm.ChatResponse) string {
 
 func timeNow() time.Time {
 	return time.Now()
+}
+
+func init() {
+	multiagent.SetAgentCreator(func(id string, opts ...multiagent.AgentOption) (multiagent.AgentRunner, error) {
+		agentOpts := make([]AgentOption, len(opts))
+		for i, opt := range opts {
+			agentOpts[i] = func(a *Agent) error {
+				opt(a)
+				return nil
+			}
+		}
+
+		newAgent, err := NewAgent(id, agentOpts...)
+		if err != nil {
+			return nil, err
+		}
+
+		return newAgent, nil
+	})
 }

@@ -1,17 +1,10 @@
 package cmd
 
 import (
-	"bufio"
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
-	"github.com/hoorayman/rizzclaw/internal/agent"
 	"github.com/hoorayman/rizzclaw/internal/config"
-	ctxmgr "github.com/hoorayman/rizzclaw/internal/context"
 	"github.com/hoorayman/rizzclaw/internal/minimax"
 	"github.com/spf13/cobra"
 )
@@ -29,10 +22,11 @@ Currently supports MiniMax as the LLM provider.`,
 }
 
 var chatCmd = &cobra.Command{
-	Use:   "chat",
-	Short: "Start an interactive chat session",
-	Long:  `Start an interactive chat session with the MiniMax LLM.`,
-	RunE:  runChat,
+	Use:        "chat",
+	Short:      "Start an interactive chat session (deprecated: use 'gateway console')",
+	Long:       `Start an interactive chat session with the MiniMax LLM. This command is deprecated, use 'rizz gateway console' instead.`,
+	RunE:       runChat,
+	Deprecated: "Use 'rizz gateway console' instead.",
 }
 
 var modelsCmd = &cobra.Command{
@@ -96,159 +90,7 @@ func printLogo() {
 }
 
 func runChat(cmd *cobra.Command, args []string) error {
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-
-	ctxMgr := ctxmgr.GetManager()
-	_ = ctxMgr
-
-	memStore := ctxmgr.GetMemoryStore()
-	_ = memStore
-
-	sessMgr := ctxmgr.GetSessionManager()
-	_ = sessMgr
-
-	sessMgr.CleanupOldSessions(100)
-	memStore.CleanupOldMemories(10000)
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Println("\nReceived interrupt signal, shutting down...")
-		cancel()
-	}()
-
-	opts := []agent.AgentOption{
-		agent.WithModel(flagModel),
-	}
-
-	if flagSystemPrompt != "" {
-		opts = append(opts, agent.WithSystemPrompt(flagSystemPrompt))
-	}
-
-	// Try to load default session first, then fall back to most recent session
-	sessions, err := sessMgr.ListSessions()
-	if err == nil && len(sessions) > 0 {
-		// First, try to find and load "default" session
-		for _, sessionID := range sessions {
-			if sessionID == "default" {
-				savedSession, err := sessMgr.LoadSession(sessionID)
-				if err == nil && savedSession != nil && len(savedSession.Messages) > 0 {
-					agentSession := &agent.Session{
-						ID:        savedSession.ID,
-						CreatedAt: savedSession.CreatedAt,
-						UpdatedAt: savedSession.UpdatedAt,
-						Messages:  make([]agent.Message, len(savedSession.Messages)),
-						Metadata:  make(map[string]any),
-					}
-					for i, msg := range savedSession.Messages {
-						agentSession.Messages[i] = agent.Message{
-							Role:      msg.Role,
-							Content:   msg.Content,
-							Timestamp: msg.Timestamp,
-						}
-					}
-					opts = append(opts, agent.WithSession(agentSession))
-					fmt.Printf("Resumed session: %s (%d messages)\n", sessionID, len(savedSession.Messages))
-					goto sessionLoaded
-				}
-			}
-		}
-
-		// If no default session, fall back to most recent session with messages
-		for i := len(sessions) - 1; i >= 0; i-- {
-			sessionID := sessions[i]
-			savedSession, err := sessMgr.LoadSession(sessionID)
-			if err == nil && savedSession != nil && len(savedSession.Messages) > 0 {
-				agentSession := &agent.Session{
-					ID:        savedSession.ID,
-					CreatedAt: savedSession.CreatedAt,
-					UpdatedAt: savedSession.UpdatedAt,
-					Messages:  make([]agent.Message, len(savedSession.Messages)),
-					Metadata:  make(map[string]any),
-				}
-				for i, msg := range savedSession.Messages {
-					agentSession.Messages[i] = agent.Message{
-						Role:      msg.Role,
-						Content:   msg.Content,
-						Timestamp: msg.Timestamp,
-					}
-				}
-				opts = append(opts, agent.WithSession(agentSession))
-				fmt.Printf("Resumed session: %s (%d messages)\n", sessionID, len(savedSession.Messages))
-				break
-			}
-		}
-	}
-sessionLoaded:
-
-	ag, err := agent.NewAgent("default", opts...)
-	if err != nil {
-		return fmt.Errorf("failed to create agent: %w", err)
-	}
-
-	if flagDebug {
-		ag.SetDebug(true)
-	}
-
-	printLogo()
-	fmt.Println("RizzClaw Chat")
-	fmt.Printf("Model: %s\n", flagModel)
-	if flagDebug {
-		fmt.Println("Debug: enabled")
-	}
-	fmt.Println("Type your message and press Enter. Type '/exit' to quit, '/clear' to clear session.")
-	fmt.Println()
-
-	reader := bufio.NewReader(os.Stdin)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-		}
-
-		fmt.Print("😎: ")
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			return fmt.Errorf("failed to read input: %w", err)
-		}
-
-		input = strings.TrimSpace(input)
-		if input == "" {
-			continue
-		}
-
-		switch input {
-		case "/exit", "/quit":
-			fmt.Println("Goodbye!")
-			return nil
-		case "/clear":
-			ag.ClearSession()
-			fmt.Println("Session cleared.")
-			continue
-		case "/help":
-			fmt.Println("Commands:")
-			fmt.Println("  /exit, /quit - Exit the chat")
-			fmt.Println("  /clear - Clear the session")
-			fmt.Println("  /help - Show this help message")
-			continue
-		}
-
-		fmt.Print("\n🦞: ")
-		response, err := ag.Run(ctx, input)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			continue
-		}
-
-		if response == "" {
-			fmt.Println("(no response)")
-		}
-		fmt.Println()
-	}
+	return runGatewayConsole(cmd, args)
 }
 
 func runModels(cmd *cobra.Command, args []string) error {

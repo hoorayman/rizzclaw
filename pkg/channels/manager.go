@@ -11,18 +11,32 @@ import (
 
 // Manager manages all channels
 type Manager struct {
-	channels map[string]Channel
-	bus      *bus.MessageBus
-	config   *config.Config
-	mu       sync.RWMutex
+	channels       map[string]Channel
+	bus            *bus.MessageBus
+	config         *config.Config
+	mu             sync.RWMutex
+	includeConsole bool
+}
+
+type ManagerOption func(*Manager)
+
+func WithConsole() ManagerOption {
+	return func(m *Manager) {
+		m.includeConsole = true
+	}
 }
 
 // NewManager creates a new channel manager
-func NewManager(cfg *config.Config, messageBus *bus.MessageBus) (*Manager, error) {
+func NewManager(cfg *config.Config, messageBus *bus.MessageBus, opts ...ManagerOption) (*Manager, error) {
 	m := &Manager{
-		channels: make(map[string]Channel),
-		bus:      messageBus,
-		config:   cfg,
+		channels:       make(map[string]Channel),
+		bus:            messageBus,
+		config:         cfg,
+		includeConsole: false,
+	}
+
+	for _, opt := range opts {
+		opt(m)
 	}
 
 	if err := m.initChannels(); err != nil {
@@ -34,6 +48,14 @@ func NewManager(cfg *config.Config, messageBus *bus.MessageBus) (*Manager, error
 
 // initChannels initializes all enabled channels based on config
 func (m *Manager) initChannels() error {
+	// If console mode is requested, only initialize console channel
+	if m.includeConsole {
+		console := NewConsoleChannel(m.bus)
+		m.channels["console"] = console
+		return nil
+	}
+
+	// Otherwise, initialize channels from config
 	// Initialize Feishu channel if enabled
 	if m.config.Channels.Feishu.Enabled {
 		feishu, err := NewFeishuChannel(m.config.Channels.Feishu, m.bus)
