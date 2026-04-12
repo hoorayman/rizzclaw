@@ -156,6 +156,14 @@ func (a *Agent) runInternalWithSession(ctx context.Context, session *Session, in
 		Timestamp: timeNow(),
 	})
 
+	// Check and compact session BEFORE sending to LLM
+	if ShouldCompactSession(session) {
+		compacted := CompactSession(session)
+		if compacted && printOutput {
+			fmt.Println("[Session compressed before sending to LLM]")
+		}
+	}
+
 	messages := convertSessionMessages(session)
 
 	var response string
@@ -197,13 +205,6 @@ func (a *Agent) runInternalWithSession(ctx context.Context, session *Session, in
 	})
 	session.UpdatedAt = timeNow()
 
-	if printOutput && ShouldCompactSession(session) {
-		compacted := CompactSession(session)
-		if compacted {
-			fmt.Println("\n[Session compressed]")
-		}
-	}
-
 	go func() {
 		SaveSessionToContext(session)
 	}()
@@ -230,6 +231,14 @@ func (a *Agent) runInternal(ctx context.Context, input string, printOutput bool)
 		Content:   input,
 		Timestamp: timeNow(),
 	})
+
+	// Check and compact session BEFORE sending to LLM
+	if ShouldCompactSession(a.Session) {
+		compacted := CompactSession(a.Session)
+		if compacted && printOutput {
+			fmt.Println("[Session compressed before sending to LLM]")
+		}
+	}
 	a.mu.Unlock()
 
 	messages := a.convertMessages()
@@ -272,14 +281,6 @@ func (a *Agent) runInternal(ctx context.Context, input string, printOutput bool)
 		Timestamp: timeNow(),
 	})
 	a.Session.UpdatedAt = timeNow()
-
-	if printOutput && ShouldCompactSession(a.Session) {
-		compacted := CompactSession(a.Session)
-		if compacted {
-			fmt.Println("\n[Session compressed]")
-		}
-	}
-
 	a.mu.Unlock()
 
 	go func() {
@@ -296,6 +297,14 @@ func (a *Agent) RunWithTools(ctx context.Context, input string, maxIterations in
 		Content:   input,
 		Timestamp: timeNow(),
 	})
+
+	// Check and compact session BEFORE sending to LLM
+	if ShouldCompactSession(a.Session) {
+		compacted := CompactSession(a.Session)
+		if compacted {
+			fmt.Println("[Session compressed before sending to LLM]")
+		}
+	}
 	a.mu.Unlock()
 
 	messages := a.convertMessages()
